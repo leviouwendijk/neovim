@@ -1,0 +1,8 @@
+lua/config/local.lua
+nvim-pack-lock.json
+
+.build
+.index-build
+
+*.env
+env/*
