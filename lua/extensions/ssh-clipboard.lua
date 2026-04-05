@@ -1,0 +1,17 @@
+-- if vim.env.SSH_TTY then
+--     print("Trying to set clipboard for SSH...")
+--     -- Configuration for when running Neovim over SSH
+--     vim.g.clipboard = {
+--       name = 'OSC 52',
+--       copy = {
+--         ['+'] = require('vim.ui.clipboard.osc52').copy('+'),
+--         ['*'] = require('vim.ui.clipboard.osc52').copy('*'),
+--       },
+--       paste = {
+--         ['+'] = require('vim.ui.clipboard.osc52').paste('+'),
+--         ['*'] = require('vim.ui.clipboard.osc52').paste('*'),
+--       },
+--     }
+-- else
+--     -- Default configuration for local system
+-- end

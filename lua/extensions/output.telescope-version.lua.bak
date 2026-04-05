@@ -1,0 +1,206 @@
+local M = {}
+
+local defaults = {
+    name = "[output]",
+    default_mode = "split", -- "split" | "telescope"
+    telescope = {
+        width = 0.8,          -- fractional (0..1) or absolute
+        height = 0.6,         -- fractional (0..1) or absolute
+        previewer_filetype = "runoutput",
+    },
+}
+
+local config = vim.tbl_deep_extend("force", {}, defaults)
+
+-- internal state
+---@class RunOutState
+---@field buf integer|nil
+---@field name string
+local RunOut = { buf = nil, name = config.name }
+
+-- ensure single bottom output buffer (split)
+local function ensure_output_window()
+    if not (RunOut.buf and vim.api.nvim_buf_is_valid(RunOut.buf)) then
+        vim.cmd("botright new")
+        RunOut.buf = vim.api.nvim_get_current_buf()
+        pcall(vim.api.nvim_buf_set_name, RunOut.buf, config.name)
+        vim.bo[RunOut.buf].buftype = "nofile"
+        vim.bo[RunOut.buf].bufhidden = "hide"
+        vim.bo[RunOut.buf].swapfile = false
+        vim.bo[RunOut.buf].modifiable = false
+        vim.bo[RunOut.buf].filetype = config.telescope.previewer_filetype or "runoutput"
+
+        vim.keymap.set("n", "q", "<cmd>close<CR>", { buffer = RunOut.buf, silent = true })
+    else
+        local wins = vim.fn.win_findbuf(RunOut.buf)
+        if #wins == 0 then
+            vim.cmd("botright new")
+            vim.api.nvim_win_set_buf(0, RunOut.buf)
+        else
+            vim.api.nvim_set_current_win(wins[1])
+        end
+    end
+    return RunOut.buf
+end
+
+-- set content into our output buffer (split)
+local function write_output_buffer(contents)
+    local buf = ensure_output_window()
+    assert(type(buf) == "number", "output: buffer id missing")
+
+    vim.bo[buf].modifiable = true
+
+    -- normalize contents
+    local lines = {}
+    if type(contents) == "string" then
+        for s in contents:gmatch("([^\n]*)\n?") do
+            table.insert(lines, s)
+        end
+    elseif type(contents) == "table" then
+        lines = contents
+    else
+        lines = { tostring(contents) }
+    end
+
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.bo[buf].modifiable = false
+
+    -- focus and place cursor at top
+    local wins = vim.fn.win_findbuf(buf)
+    if #wins > 0 then
+        local win = wins[1] ---@type integer
+        vim.api.nvim_win_set_cursor(win, { 1, 0 })
+        vim.api.nvim_set_current_win(win)
+    else
+        vim.cmd("botright split")
+        vim.api.nvim_win_set_buf(0, buf)
+        vim.api.nvim_win_set_cursor(0, { 1, 0 })
+    end
+end
+
+-- Telescope previewer mode
+local function show_output_in_telescope(contents, opts)
+    opts = opts or {}
+    local ok = pcall(require, "telescope")
+    if not ok then
+        vim.notify("Telescope not available; falling back to split output.", vim.log.levels.WARN)
+        write_output_buffer(contents)
+        return
+    end
+
+    local pickers = require("telescope.pickers")
+    local finders = require("telescope.finders")
+    local sorters = require("telescope.sorters")
+    local previewers = require("telescope.previewers")
+    local actions = require("telescope.actions")
+    -- local action_state = require("telescope.actions.state") -- unused
+
+    -- ensure contents is a table of strings
+    local lines = {}
+    if type(contents) == "string" then
+        for s in contents:gmatch("([^\n]*)\n?") do
+            table.insert(lines, s)
+        end
+    elseif type(contents) == "table" then
+        lines = contents
+    else
+        lines = { tostring(contents) }
+    end
+
+    local p = previewers.new_buffer_previewer({
+        define_preview = function(self, _entry, _status)
+            local bufnr = self.state and self.state.bufnr
+            if not (bufnr and vim.api.nvim_buf_is_valid(bufnr)) then return end
+
+            -- use non-deprecated option setters
+            vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = bufnr })
+            vim.api.nvim_set_option_value(
+                "filetype",
+                opts.previewer_filetype or config.telescope.previewer_filetype,
+                { buf = bufnr }
+            )
+            vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+            vim.api.nvim_set_option_value("modifiable", false, { buf = bufnr })
+        end,
+    })
+
+    local layout_config = {
+        width = opts.width or config.telescope.width,
+        height = opts.height or config.telescope.height,
+    }
+
+    pickers.new({}, {
+        prompt_title = "Output",
+        finder = finders.new_table({ results = { "output" } }),
+        previewer = p,
+        sorter = sorters.get_generic_fuzzy_sorter(),
+        layout_config = layout_config,
+        attach_mappings = function(prompt_bufnr, map)
+            actions.select_default:replace(function()
+                actions.close(prompt_bufnr)
+            end)
+            map("i", "q", function() actions.close(prompt_bufnr) end)
+            map("n", "q", function() actions.close(prompt_bufnr) end)
+            return true
+        end,
+    }):find()
+end
+
+-- run command and capture output (string or table)
+local function capture_command(cmd, file)
+    local ok, result = pcall(vim.fn.systemlist, { cmd, file })
+    local out = {}
+    if not ok then
+        out = { "Failed to run: " .. tostring(cmd) .. " " .. tostring(file) }
+        return out, 1
+    end
+    out = result or {}
+    local code = vim.v.shell_error or 0
+    return out, code
+end
+
+-- Primary run function (exposed)
+-- opts: { cmd="swift", file="/path", lines=2, mode="split"|"telescope", telescope={width=...,height=...,previewer_filetype=...} }
+function M.run(opts)
+    if not opts or not opts.cmd then
+        vim.notify("output.run: missing opts.cmd", vim.log.levels.ERROR)
+        return
+    end
+
+    local file = opts.file or vim.fn.expand("%:p")
+    local lines = opts.lines or 0
+    local mode = opts.mode or config.default_mode
+
+    local lead = {}
+    for _ = 1, lines do table.insert(lead, "") end
+
+    local out, code = capture_command(opts.cmd, file)
+    if code ~= 0 then
+        table.insert(out, string.format("[exit %d]", code))
+    end
+    for i = #lead, 1, -1 do table.insert(out, 1, lead[i]) end
+
+    if mode == "telescope" then
+        local tel_opts = vim.tbl_deep_extend("force", {}, config.telescope, opts.telescope or {})
+        show_output_in_telescope(out, tel_opts)
+    else
+        write_output_buffer(out)
+    end
+end
+
+-- convenience wrappers
+function M.run_file_in_split(cmd, file, lines)
+    M.run({ cmd = cmd, file = file, lines = lines or 0, mode = "split" })
+end
+
+function M.run_file_in_telescope(cmd, file, lines, telescope_opts)
+    M.run({ cmd = cmd, file = file, lines = lines or 0, mode = "telescope", telescope = telescope_opts })
+end
+
+-- optional setup (kept minimal — add keymaps in your config or here if you like)
+function M.setup(opts)
+    config = vim.tbl_deep_extend("force", config, opts or {})
+    RunOut.name = config.name
+end
+
+return M
