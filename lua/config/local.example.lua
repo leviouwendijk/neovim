@@ -51,6 +51,7 @@ M.bin = {
 
 M.paths = {
     home = path.home,
+    main = path.main,
     neorg = {
         root = neorg_root,
         workspaces = {

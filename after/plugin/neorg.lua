@@ -9,37 +9,57 @@ if not neorg then
     return
 end
 
+-- neorg.setup({
+--     load = {
+--         ["core.defaults"] = {}, -- Loads default behavior
+--         ["core.concealer"] = { -- Replaces 'core.norg.concealer'
+--             config = {
+--                 icons = {
+--                     todo = {
+--                         cancelled = { icon = "❌" },
+--                         done = { icon = "✅" },
+--                         on_hold = { icon = "⏸️" },
+--                         urgent = { icon = "⚠️" }
+--                     }
+--                 },
+--                 dim_code_blocks = {
+--                     conceal = true,
+--                 },
+--                 icon_preset = "varied", -- Sets the icon style
+--             }
+--         },
+--         ["core.dirman"] = { -- Manages Neorg workspaces
+--             config = {
+--                 workspaces = acc.paths.neorg.workspaces,
+--                 -- workspaces = {
+--                 --     writing = "~/myworkdir/neorg/writing",
+--                 --     work = "~/myworkdir/neorg/work",
+--                 --     personal = "~/myworkdir/neorg/personal",
+--                 -- },
+--                 index = "index.norg", -- Sets the root file
+--             }
+--         }
+--     }
+-- })
+
+-- norg treesitter error workaround:
+
 neorg.setup({
     load = {
-        ["core.defaults"] = {}, -- Loads default behavior
-        ["core.concealer"] = { -- Replaces 'core.norg.concealer'
-            config = {
-                icons = {
-                    todo = {
-                        cancelled = { icon = "❌" },
-                        done = { icon = "✅" },
-                        on_hold = { icon = "⏸️" },
-                        urgent = { icon = "⚠️" }
-                    }
-                },
-                dim_code_blocks = {
-                    conceal = true,
-                },
-                icon_preset = "varied", -- Sets the icon style
-            }
-        },
-        ["core.dirman"] = { -- Manages Neorg workspaces
+        ["core.dirman"] = {
             config = {
                 workspaces = acc.paths.neorg.workspaces,
-                -- workspaces = {
-                --     writing = "~/myworkdir/neorg/writing",
-                --     work = "~/myworkdir/neorg/work",
-                --     personal = "~/myworkdir/neorg/personal",
-                -- },
-                index = "index.norg", -- Sets the root file
-            }
-        }
-    }
+                index = "index.norg",
+            },
+        },
+
+        ["core.integrations.treesitter"] = {
+            config = {
+                configure_parsers = false,
+                install_parsers = false,
+            },
+        },
+    },
 })
 
 function NeorgInjectMetadata()

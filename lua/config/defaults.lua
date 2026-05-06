@@ -36,6 +36,7 @@ M.bin = {
 
 M.paths = {
     home = home,
+    main = path.home_join("main"),
     neorg = {
         root = nil,
         workspaces = {},
