@@ -1,0 +1,42 @@
+-- local function find_lang_marker(node, bufnr)
+--     local cur = node:parent()
+--     while cur do
+--         if cur:type() == "function_body" then
+--             for i = 0, cur:named_child_count() - 1 do
+--                 local child = cur:named_child(i)
+--                 if child:type() == "comment" then
+--                     local text = vim.treesitter.get_node_text(child, bufnr)
+--                     if text then
+--                         local lang = text:match("lang%s*=%s*(%w+)")
+--                         if lang then return lang end
+--                     end
+--                 end
+--             end
+--             break
+--         end
+--         cur = cur:parent()
+--     end
+--     return nil
+-- end
+
+-- vim.treesitter.query.add_predicate("has-lang-marker?", function(match, _pat, source, pred)
+--     local id = pred[2]
+--     local nodes = match[id]
+--     local node = type(nodes) == "table" and nodes[1] or nodes
+--     if not node then return false end
+--     local bufnr = type(source) == "number" and source or 0
+--     return find_lang_marker(node, bufnr) ~= nil
+-- end, { force = true })
+
+-- vim.treesitter.query.add_directive("set-lang-from-marker!", function(match, _pat, source, pred, metadata)
+--     local id = pred[2]
+--     local nodes = match[id]
+--     local node = type(nodes) == "table" and nodes[1] or nodes
+--     if not node then return end
+--     local bufnr = type(source) == "number" and source or 0
+--     local lang = find_lang_marker(node, bufnr)
+--     if lang then
+--         metadata[id] = metadata[id] or {}
+--         metadata[id]["injection.language"] = lang
+--     end
+-- end, { force = true })

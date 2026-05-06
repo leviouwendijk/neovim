@@ -51,6 +51,9 @@ ts.install({
     "http",
     "mermaid",
     "dot",
+
+    -- "norg",
+    -- "norg_meta",
 })
 
 local highlight_filetypes = {
@@ -77,6 +80,8 @@ local highlight_filetypes = {
     dbml = true,
     sdia = true,
     ec = true,
+
+    -- norg = true,
 }
 
 local indent_filetypes = {
@@ -101,6 +106,8 @@ local indent_filetypes = {
     dot = true,
     dbml = true,
     sdia = true,
+
+    -- norg = true,
 }
 
 vim.api.nvim_create_autocmd("FileType", {

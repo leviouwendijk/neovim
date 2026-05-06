@@ -41,6 +41,24 @@ function M.register_custom_parsers()
         filetype = "ec",
     }
 
+    parsers.norg = {
+        install_info = {
+            url = "https://github.com/nvim-neorg/tree-sitter-norg",
+            branch = "main",
+            files = { "src/parser.c", "src/scanner.cc" },
+            cxx_standard = "c++14",
+        },
+        filetype = "norg",
+    }
+
+    parsers.norg_meta = {
+        install_info = {
+            url = "https://github.com/nvim-neorg/tree-sitter-norg-meta",
+            branch = "main",
+            files = { "src/parser.c" },
+        },
+    }
+
     vim.filetype.add({
         extension = {
             functions = "zsh",
@@ -48,6 +66,7 @@ function M.register_custom_parsers()
             dbml = "dbml",
             sdia = "sdia",
             ec = "ec",
+            norg = "norg",
         },
     })
 
@@ -56,6 +75,7 @@ function M.register_custom_parsers()
     vim.treesitter.language.register("dbml", { "dbml" })
     vim.treesitter.language.register("sdia", { "sdia" })
     vim.treesitter.language.register("ec", { "ec" })
+    vim.treesitter.language.register("norg", { "norg" })
 
     return true
 end

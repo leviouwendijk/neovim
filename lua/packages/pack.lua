@@ -9,7 +9,6 @@ local function spec(repo, opts)
     return opts
 end
 
--- Preserve old packer setup behavior before lazy-load
 vim.g.mkdp_filetypes = { "markdown" }
 
 -- Post-install / post-update hooks
@@ -30,7 +29,9 @@ vim.api.nvim_create_autocmd("PackChanged", {
 
         if name == "nvim-treesitter" then
             vim.schedule(function()
-                pcall(vim.cmd, "TSUpdate")
+                pcall(function()
+                    vim.cmd("TSUpdate")
+                end)
             end)
         end
     end,
@@ -51,7 +52,6 @@ vim.pack.add({
     spec("AbdelrahmanDwedar/awesome-nvim-colorschemes"),
 
     spec("nvim-treesitter/nvim-treesitter"),
-    -- spec("nvim-treesitter/playground"),
     spec("nvim-treesitter/nvim-treesitter-context"),
 
     spec("theprimeagen/harpoon", {
@@ -108,13 +108,11 @@ vim.pack.add({
     spec("sainnhe/gruvbox-material"),
     spec("terrastruct/d2-vim"),
 
-    -- open-browser can be always-on or lazy; always-on is simpler/safer
     spec("tyru/open-browser.vim"),
 }, {
     load = true,
 })
 
--- Lazy plugins: match old packer ft behavior
 vim.pack.add({
     spec("iamcco/markdown-preview.nvim"),
     spec("aklt/plantuml-syntax"),
