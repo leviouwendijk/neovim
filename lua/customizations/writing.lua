@@ -1,10 +1,24 @@
 local acc = require("accessor")
 local path = require("config.path")
 
-local prose_roots = {
-    acc.paths.writing_root,
-    acc.paths.neorg.root,
-}
+local prose_roots = {}
+
+local function add_prose_root(root)
+    if type(root) ~= "string" or root == "" then
+        return
+    end
+
+    root = path.normalize(root)
+
+    if root == "" then
+        return
+    end
+
+    table.insert(prose_roots, root)
+end
+
+add_prose_root(acc.paths.writing_root)
+add_prose_root(acc.paths.neorg and acc.paths.neorg.root)
 
 local function set_wrap(enabled)
     vim.opt_local.wrap = enabled
@@ -52,20 +66,22 @@ end
 
 vim.api.nvim_create_user_command("Wrap", toggle_wrap, {})
 
-vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
-    pattern = vim.tbl_map(function(root)
-        return path.glob(root)
-    end, prose_roots),
-    callback = function()
-        -- muted because of excessive red lines::
-        -- vim.opt_local.spell = true
-        -- vim.opt_local.spelllang = "en_us,nl,he"
-        vim.opt_local.spell = true
-        vim.opt_local.spelllang = "he"
-        set_wrap(true)
-        -- vim.opt_local.textwidth = 80  -- Uncomment if needed
-    end,
-})
+if #prose_roots > 0 then
+    vim.api.nvim_create_autocmd({ "BufRead", "BufNewFile" }, {
+        pattern = vim.tbl_map(function(root)
+            return path.glob(root)
+        end, prose_roots),
+        callback = function()
+            -- muted because of excessive red lines::
+            -- vim.opt_local.spell = true
+            -- vim.opt_local.spelllang = "en_us,nl,he"
+            vim.opt_local.spell = true
+            vim.opt_local.spelllang = "he"
+            set_wrap(true)
+            -- vim.opt_local.textwidth = 80  -- Uncomment if needed
+        end,
+    })
+end
 
 vim.api.nvim_create_autocmd("VimResized", {
     pattern = "*",
