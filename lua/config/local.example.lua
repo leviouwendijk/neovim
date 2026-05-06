@@ -3,9 +3,10 @@ local path = require("config.path")
 local M = {}
 
 local eclsp_bin = path.home_join("sbm-bin", "eclsp")
-local neorg_root = path.home_join("myworkdir", "neorg")
-local writing_root = path.home_join("myworkdir", "writing")
-local bedrocks_root = path.home_join("myworkdir", "ctxw")
+local main = path.home_join("main")
+local neorg_root = path.home_join(main, "neorg")
+local writing_root = path.home_join(main, "writing")
+local bedrocks_root = path.home_join(main, "ctxw")
 
 M.boot = {
     host_selections = {
@@ -61,7 +62,7 @@ M.paths = {
         },
     },
     writing_root = writing_root,
-    pdf_output = path.home_join("myworkdir", "pdf_output"),
+    pdf_output = path.home_join(main, "pdf_output"),
     bedrocks = {
         root = bedrocks_root,
     },
