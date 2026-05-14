@@ -60,10 +60,19 @@ end
 function M.model(path)
     local root = norm(state.root)
 
-    -- Normalize the incoming path and ensure we operate on a DIRECTORY.
+    -- No configured root means Bedrocks is disabled.
+    if root == "" then
+        return nil
+    end
+
+    -- Normalize the incoming path and ensure we operate on a directory.
     local here = norm(path or vim.fn.getcwd())
 
-    -- If caller gave us a FILE path, switch to its parent directory.
+    if here == "" then
+        return nil
+    end
+
+    -- If caller gave us a file path, switch to its parent directory.
     do
         local st = vim.loop.fs_stat(here)
         if st and st.type == "file" then
@@ -71,8 +80,11 @@ function M.model(path)
         end
     end
 
-    -- Outside the root? disable
-    if here:sub(1, #root) ~= root then return nil end
+    -- Outside the root? Disable.
+    -- Must match either the root itself or a real child path.
+    if here ~= root and here:sub(1, #root + 1) ~= root .. "/" then
+        return nil
+    end
 
     local rel = here:sub(#root + 1):gsub("^/", "")
     local raw_parts = (rel == "" and {} or split(rel))
@@ -213,9 +225,14 @@ end
 ---Usage: require('extensions.bedrocks-depth').setup{ root = "/other/root" }
 function M.setup(opts)
     if not opts then return end
-    if opts.root then
+
+    -- if opts.root then
+    --     state.root = norm(opts.root)
+    -- end
+    if opts.root ~= nil then
         state.root = norm(opts.root)
     end
+
     if opts.formatters then
         -- { [level] = function(model) return "<statusline>" end }
         state.formatters = vim.deepcopy(opts.formatters)
