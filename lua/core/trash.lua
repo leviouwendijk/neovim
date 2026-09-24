@@ -11,27 +11,101 @@ local YES_LINE = 4
 local NO_LINE = 5
 local PICKER_NS = vim.api.nvim_create_namespace("core.trash")
 
-local function plenaryPicker(prompt_title, callback, current_line)
-    local width = 50
-    local height = 6
+local function trashPicker(prompt_title, callback, current_line)
+    local hint =
+        "j/k move  ·  Enter select  ·  Esc cancel"
 
-    -- Create the popup
-    local win_buf = vim.api.nvim_create_buf(false, true)
+    local available_width =
+        math.max(
+            1,
+            vim.o.columns - 4
+        )
+    local width =
+        math.min(
+            available_width,
+            math.max(
+                42,
+                math.min(
+                    72,
+                    math.max(
+                        vim.fn.strdisplaywidth(prompt_title),
+                        vim.fn.strdisplaywidth(hint)
+                    ) + 4
+                )
+            )
+        )
+    local height =
+        math.min(
+            7,
+            math.max(
+                1,
+                vim.o.lines - 4
+            )
+        )
+
+    -- Create the popup.
+    local win_buf =
+        vim.api.nvim_create_buf(
+            false,
+            true
+        )
+
     if not win_buf then
         print("Error creating buffer for popup")
         return
     end
 
-    local win_id = vim.api.nvim_open_win(win_buf, true, {
-        relative = "editor",
-        width = width,
-        height = height,
-        col = math.floor((vim.o.columns - width) / 2),
-        row = math.floor((vim.o.lines - height) / 2),
-        border = "single",
-    })
+    vim.b[win_buf].indentation_overlay_disabled = true
 
-    -- This picker is a fixed Yes/No surface. Keep nvim-cmp available
+    local opened, win_id =
+        pcall(
+            vim.api.nvim_open_win,
+            win_buf,
+            true,
+            {
+                relative = "editor",
+                width = width,
+                height = height,
+                col =
+                    math.max(
+                        0,
+                        math.floor(
+                            (vim.o.columns - width)
+                            / 2
+                        )
+                    ),
+                row =
+                    math.max(
+                        0,
+                        math.floor(
+                            (vim.o.lines - height)
+                            / 2
+                        ) - 1
+                    ),
+                border = "rounded",
+                title = " Trash ",
+                title_pos = "center",
+                style = "minimal",
+                zindex = 250,
+            }
+        )
+
+    if not opened then
+        pcall(
+            vim.api.nvim_buf_delete,
+            win_buf,
+            {
+                force = true,
+            }
+        )
+        funcs.safe_notify(
+            "Unable to open trash confirmation",
+            vim.log.levels.ERROR
+        )
+        return
+    end
+
+    -- This picker is a fixed selection surface. Keep nvim-cmp available
     -- globally, but suppress its ghost text specifically in this buffer.
     local ok_cmp, cmp = pcall(require, "cmp")
     if ok_cmp and cmp.setup and cmp.setup.buffer then
@@ -42,116 +116,169 @@ local function plenaryPicker(prompt_title, callback, current_line)
         })
     end
 
-    -- Set the buffer content
-    vim.api.nvim_buf_set_lines(win_buf, 0, -1, false, {
-        "",
-        prompt_title,
-        "",
-        "  Yes",
-        "  No",
-        ""
-    }
+    -- Selection is deliberately movement + Enter only. The destructive
+    -- choice is not the default and has no single-key shortcut.
+    vim.api.nvim_buf_set_lines(
+        win_buf,
+        0,
+        -1,
+        false,
+        {
+            "",
+            prompt_title,
+            "",
+            "  Move to Trash",
+            "  Cancel",
+            "",
+            hint,
+        }
     )
 
-    vim.bo[win_buf].buftype = "prompt" -- Disable editing, ideal for a selection popup
+    vim.bo[win_buf].buftype = "nofile"
     vim.bo[win_buf].modifiable = false
     vim.bo[win_buf].bufhidden = "wipe"
-    -- Disable line numbers for the popup
+    vim.bo[win_buf].swapfile = false
+    vim.bo[win_buf].filetype = "trash-confirm"
+
     vim.wo[win_id].number = false
     vim.wo[win_id].relativenumber = false
+    vim.wo[win_id].signcolumn = "no"
+    vim.wo[win_id].cursorline = true
+    vim.wo[win_id].winhl =
+        "Normal:NormalFloat,"
+        .. "FloatBorder:DiagnosticWarn,"
+        .. "CursorLine:Visual"
 
-    -- Create a custom highlight group for the bold filename
-    vim.api.nvim_set_hl(0, "PickerBold", { bold = true })
+    vim.api.nvim_buf_set_extmark(
+        win_buf,
+        PICKER_NS,
+        1,
+        0,
+        {
+            end_row = 1,
+            end_col = #prompt_title,
+            hl_group = "Title",
+        }
+    )
 
-    -- Apply the highlight to the filename line
-    -- vim.api.nvim_buf_add_highlight(win_buf, -1, "PickerBold", 1, 0, -1)
-    vim.api.nvim_buf_set_extmark(win_buf, PICKER_NS, 1, 0, {
-        end_row = 1,
-        end_col = #prompt_title,
-        hl_group = "PickerBold",
-    })
+    vim.api.nvim_buf_set_extmark(
+        win_buf,
+        PICKER_NS,
+        6,
+        0,
+        {
+            end_row = 6,
+            end_col = #hint,
+            hl_group = "Comment",
+        }
+    )
 
-    -- Set the default cursor position to the "Yes" line
-    vim.api.nvim_win_set_cursor(win_id, { YES_LINE, 0 })
+    -- Start on Cancel so confirming always requires an intentional move
+    -- followed by Enter.
+    vim.api.nvim_win_set_cursor(
+        win_id,
+        {
+            NO_LINE,
+            0,
+        }
+    )
 
     local function close_picker(restore_cursor)
         if vim.api.nvim_win_is_valid(win_id) then
-            vim.api.nvim_win_close(win_id, true)
+            vim.api.nvim_win_close(
+                win_id,
+                true
+            )
         end
+
         if restore_cursor then
             restore_cursor()
         end
     end
 
-    -- Handle user input
-    vim.api.nvim_buf_set_keymap(win_buf, "n", "k", "", {
-        noremap = true,
-        silent = true,
-        callback = function()
-            local cursor = vim.api.nvim_win_get_cursor(win_id)
-            vim.api.nvim_win_set_cursor(win_id, { math.max(cursor[1] - 1, YES_LINE), cursor[2] })
-        end,
-    })
+    local function move_choice(delta)
+        if not vim.api.nvim_win_is_valid(win_id) then
+            return
+        end
 
-    vim.api.nvim_buf_set_keymap(win_buf, "n", "j", "", {
-        noremap = true,
-        silent = true,
-        callback = function()
-            local cursor = vim.api.nvim_win_get_cursor(win_id)
-            vim.api.nvim_win_set_cursor(win_id, { math.min(cursor[1] + 1, NO_LINE), cursor[2] })
-        end,
-    })
+        local cursor =
+            vim.api.nvim_win_get_cursor(
+                win_id
+            )
+        local line =
+            math.max(
+                YES_LINE,
+                math.min(
+                    NO_LINE,
+                    cursor[1] + delta
+                )
+            )
 
-    vim.api.nvim_buf_set_keymap(win_buf, "n", "<CR>", "", {
-        noremap = true,
-        silent = true,
-        callback = function()
-            local cursor = vim.api.nvim_win_get_cursor(win_id)
-            local choice = (cursor[1] == YES_LINE) and "Yes" or "No"
-            close_picker()
-            callback(choice)
-        end,
-    })
+        vim.api.nvim_win_set_cursor(
+            win_id,
+            {
+                line,
+                0,
+            }
+        )
+    end
 
-    vim.api.nvim_buf_set_keymap(win_buf, "n", "q", "", {
-        noremap = true,
-        silent = true,
-        callback = function()
-            close_picker(function()
-                vim.fn.cursor(current_line, 0)
-            end)
-        end,
-    })
+    local function map(lhs, callback_fn)
+        vim.keymap.set(
+            "n",
+            lhs,
+            callback_fn,
+            {
+                buffer = win_buf,
+                noremap = true,
+                silent = true,
+                nowait = true,
+            }
+        )
+    end
 
-    vim.api.nvim_buf_set_keymap(win_buf, "n", "<C-c>", "", {
-        noremap = true,
-        silent = true,
-        callback = function()
-            close_picker(function()
-                vim.fn.cursor(current_line, 0)
-            end)
-        end,
-    })
+    map("k", function()
+        move_choice(-1)
+    end)
 
-    -- Add 'y' and 'n' mappings for Yes and No
-    vim.api.nvim_buf_set_keymap(win_buf, "n", "y", "", {
-        noremap = true,
-        silent = true,
-        callback = function()
-            close_picker()
-            callback("Yes") -- Pass "Yes" to the callback when 'y' is pressed
-        end,
-    })
+    map("<Up>", function()
+        move_choice(-1)
+    end)
 
-    vim.api.nvim_buf_set_keymap(win_buf, "n", "n", "", {
-        noremap = true,
-        silent = true,
-        callback = function()
-            close_picker(function()
-                vim.fn.cursor(current_line, 0)
-            end)
-        end,
-    })
+    map("j", function()
+        move_choice(1)
+    end)
+
+    map("<Down>", function()
+        move_choice(1)
+    end)
+
+    map("<CR>", function()
+        local cursor =
+            vim.api.nvim_win_get_cursor(
+                win_id
+            )
+        local choice =
+            cursor[1] == YES_LINE
+            and "Yes"
+            or "No"
+
+        close_picker()
+        callback(choice)
+    end)
+
+    local function cancel()
+        close_picker(function()
+            vim.fn.cursor(
+                current_line,
+                0
+            )
+        end)
+    end
+
+    map("q", cancel)
+    map("<Esc>", cancel)
+    map("<C-c>", cancel)
 end
 
 -- util: optionally auto-press <CR> to kill any pending "Press ENTER"
@@ -235,7 +362,11 @@ function NetrwTrash(absolute_path)
     end
 
     -- Open the picker
-    plenaryPicker("Trash " .. display_path .. "?", perform_trash, current_line)
+    trashPicker(
+        "Trash " .. display_path .. "?",
+        perform_trash,
+        current_line
+    )
 end
 
 -- function for seeing if we can somehow detect files in other directories than where we entered as cwd

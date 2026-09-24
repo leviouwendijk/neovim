@@ -17,7 +17,7 @@ end
 
 return testing.suite("trash", {
     testing.test(
-        "picker_is_stable_and_disables_overlays",
+        "picker_requires_move_and_enter_and_disables_overlays",
         function()
             local previous_cmp = package.loaded["cmp"]
             local previous_trash = package.loaded["core.trash"]
@@ -119,7 +119,7 @@ return testing.suite("trash", {
                 )
                 expect.equal(
                     vim.bo[picker_buf].buftype,
-                    "prompt",
+                    "nofile",
                     "trash picker buffer type"
                 )
                 expect.falsy(
@@ -174,12 +174,42 @@ return testing.suite("trash", {
                     false
                 )
 
-                expect.equal(before[4], "  Yes")
-                expect.equal(before[5], "  No")
+                expect.equal(
+                    before[4],
+                    "  Move to Trash"
+                )
+                expect.equal(
+                    before[5],
+                    "  Cancel"
+                )
+                expect.equal(
+                    vim.api.nvim_win_get_cursor(
+                        picker_win
+                    )[1],
+                    5,
+                    "trash picker defaults to Cancel"
+                )
 
+                expect.nil_value(
+                    mapping_for(
+                        picker_buf,
+                        "y"
+                    ),
+                    "trash picker has no direct confirm key"
+                )
+
+                local enter =
+                    mapping_for(
+                        picker_buf,
+                        "<CR>"
+                    )
                 local j = mapping_for(picker_buf, "j")
                 local k = mapping_for(picker_buf, "k")
 
+                expect.not_nil(
+                    enter,
+                    "trash picker Enter mapping"
+                )
                 expect.not_nil(j, "trash picker j mapping")
                 expect.not_nil(k, "trash picker k mapping")
 
@@ -199,6 +229,16 @@ return testing.suite("trash", {
 
                 assert(type(j_callback) == "function")
                 assert(type(k_callback) == "function")
+
+                k_callback()
+
+                expect.equal(
+                    vim.api.nvim_win_get_cursor(
+                        picker_win
+                    )[1],
+                    4,
+                    "confirming requires moving to destructive choice"
+                )
 
                 for _ = 1, 128 do
                     j_callback()

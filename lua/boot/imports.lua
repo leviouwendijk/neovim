@@ -22,6 +22,7 @@ local SystemConfiguration = {
 
     interface = {
         { "ansi"        , "interface.ansi" },
+        { "confirm"     , "interface.confirm" },
         { "checkhealth" , "interface.checkhealth" },
     },
 

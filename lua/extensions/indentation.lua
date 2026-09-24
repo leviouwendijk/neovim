@@ -86,9 +86,13 @@ local function clear(buf) vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1) end
 local function decorate(buf, win)
     if mode == "none" then return end
 
-    -- Prompt/select buffers are UI surfaces, not editable text. Indentation
-    -- overlays obscure their labels and can be rescheduled by CursorMoved.
-    if vim.bo[buf].buftype == "prompt" then
+    -- Prompt buffers and explicitly opted-out UI surfaces should not receive
+    -- indentation overlays. Do not blanket-disable every special buffer:
+    -- tests and other scratch buffers may intentionally render indentation.
+    if
+        vim.bo[buf].buftype == "prompt"
+        or vim.b[buf].indentation_overlay_disabled == true
+    then
         return
     end
 

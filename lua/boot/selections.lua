@@ -42,6 +42,7 @@ local Selections = {
 
         interface = {
             ansi = true,
+            confirm = true,
             checkhealth = true,
         },
 

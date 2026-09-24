@@ -9,6 +9,7 @@ return {
             format = true,
             output = true,
             nicetstamp = true,
+            confirm = true,
             boot = true,
             funcs = true,
             indentation = true,

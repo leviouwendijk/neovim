@@ -8,6 +8,7 @@ return {
         { "format"       , "tests/format.lua" },
         { "output"       , "tests/output.lua" },
         { "nicetstamp"   , "tests/nicetstamp.lua" },
+        { "confirm"     , "tests/confirm.lua" },
         { "boot"        , "tests/boot.lua" },
         { "funcs"       , "tests/funcs.lua" },
         { "indentation" , "tests/indentation.lua" },
