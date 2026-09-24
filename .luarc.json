@@ -10,7 +10,7 @@
     "workspace": {
         "checkThirdParty": false,
         "library": [
-            "/opt/homebrew/opt/neovim/share/nvim/runtime",
+            "${env:VIMRUNTIME}",
             "${3rd}/luv/library"
         ]
     }

@@ -1,7 +1,41 @@
 #!/bin/sh
 
+status=0
+
+for dependency in nvim lua-language-server; do
+    if ! command -v "$dependency" >/dev/null 2>&1; then
+        printf 'missing dependency: %s\n' "$dependency" >&2
+        status=1
+    fi
+done
+
+if [ "$status" -ne 0 ]; then
+    exit "$status"
+fi
+
+VIMRUNTIME="$(
+    nvim --clean --headless \
+        +'lua io.write(vim.env.VIMRUNTIME)' \
+        +qa
+)"
+export VIMRUNTIME
+
 # run warning checks
-lua-language-server --check=. --checklevel=Warning --check_format=pretty
+if ! lua-language-server \
+    --check=. \
+    --checklevel=Warning \
+    --check_format=pretty
+then
+    status=1
+fi
 
 # run test suite
-nvim --headless -u tests/minimal_init.lua -l tests/run.lua
+if ! nvim \
+    --headless \
+    -u tests/minimal_init.lua \
+    -l tests/run.lua
+then
+    status=1
+fi
+
+exit "$status"
