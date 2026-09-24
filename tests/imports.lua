@@ -6,6 +6,7 @@ return {
         { "boot"        , "tests/boot.lua" },
         { "funcs"       , "tests/funcs.lua" },
         { "indentation" , "tests/indentation.lua" },
+        { "filetype"    , "tests/filetype.lua" },
         { "file_rename" , "tests/file_rename.lua" },
         { "filemover"   , "tests/filemover.lua" },
         { "trash"       , "tests/trash.lua" },

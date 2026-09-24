@@ -7,6 +7,7 @@ return {
             boot = true,
             funcs = true,
             indentation = true,
+            filetype = true,
             file_rename = true,
             filemover = true,
             trash = true,
