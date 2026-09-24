@@ -6,6 +6,7 @@ return {
             swift_lsp = true,
             lsp_diagnostic_copy = true,
             lsp_symbol_library = true,
+            format = true,
             boot = true,
             funcs = true,
             indentation = true,

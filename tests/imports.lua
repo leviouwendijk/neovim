@@ -5,6 +5,7 @@ return {
         { "swift_lsp"   , "tests/swift_lsp.lua" },
         { "lsp_diagnostic_copy", "tests/lsp_diagnostic_copy.lua" },
         { "lsp_symbol_library", "tests/lsp_symbol_library.lua" },
+        { "format"       , "tests/format.lua" },
         { "boot"        , "tests/boot.lua" },
         { "funcs"       , "tests/funcs.lua" },
         { "indentation" , "tests/indentation.lua" },
