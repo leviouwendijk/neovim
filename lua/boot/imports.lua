@@ -20,6 +20,11 @@ local SystemConfiguration = {
         { "treesitter" ,  "core.treesitter" },
     },
 
+    interface = {
+        { "ansi"        , "interface.ansi" },
+        { "checkhealth" , "interface.checkhealth" },
+    },
+
     customizations = {
         { "writing"       ,  "customizations.writing" },
         { "statusline"    ,  "customizations.statusline" },
@@ -66,6 +71,43 @@ local SystemConfiguration = {
         { "project_progress" ,  "utils.project-progress" },
         { "casecon"          ,  "utils.casecon" },
         { "dependencies"     ,  "utils.dependencies" },
+    },
+
+    commands = {
+        { "check_dependencies"     , "commands.check-dependencies" },
+        { "ec_id"                  , "commands.ec-id" },
+        { "ec_insert"              , "commands.ec-insert" },
+        { "indentation"            , "commands.indentation" },
+        { "output"                 , "commands.output" },
+        { "shell"                  , "commands.shell" },
+        { "workspace_diagnostics"  , "commands.workspace-diagnostics" },
+    },
+
+    integrations = {
+        { "colorscheme"       , "interface.colorscheme" },
+        { "indent_blankline"  , "integrations.indent-blankline" },
+        { "limelight"         , "integrations.limelight" },
+        { "notify"            , "integrations.notify" },
+        { "scrollbar"         , "integrations.scrollbar" },
+        { "statusline"        , "interface.statusline" },
+        { "zen_mode"          , "integrations.zen-mode" },
+        { "gitsigns"          , "integrations.gitsigns" },
+        { "harpoon"           , "integrations.harpoon" },
+        { "neoscroll"         , "integrations.neoscroll" },
+        { "telescope"         , "integrations.telescope" },
+        { "vim_commentary"    , "integrations.vim-commentary" },
+        { "visimatch"         , "integrations.visimatch" },
+        { "yanky"             , "integrations.yanky" },
+        { "d2"                , "integrations.d2" },
+        { "lsp"               , "integrations.lsp" },
+        { "mason_tools"       , "integrations.mason-tools" },
+        { "neorg"             , "integrations.neorg" },
+        { "luasnip"           , "integrations.luasnip" },
+        { "treesitter"        , "integrations.treesitter" },
+    },
+
+    testing = {
+        { "init" , "testing" },
     }
 }
 

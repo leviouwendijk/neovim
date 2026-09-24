@@ -11,7 +11,7 @@ This config is organized around a shared public baseline and a private local ove
 - `lua/config/local.example.lua` is the template for public overrides
 - `lua/accessor.lua` merges defaults with local overrides
 
-Most optional plugin setup in `after/plugin` is guarded so missing plugins fail softly instead of crashing startup.
+Plugin integration setup lives under `lua/integrations` and is loaded explicitly by the boot graph after packages are available. Optional integrations are guarded so missing plugins fail softly instead of crashing startup.
 
 ## Requirements
 

@@ -31,6 +31,17 @@ local function plenaryPicker(prompt_title, callback, current_line)
         border = "single",
     })
 
+    -- This picker is a fixed Yes/No surface. Keep nvim-cmp available
+    -- globally, but suppress its ghost text specifically in this buffer.
+    local ok_cmp, cmp = pcall(require, "cmp")
+    if ok_cmp and cmp.setup and cmp.setup.buffer then
+        cmp.setup.buffer({
+            experimental = {
+                ghost_text = false,
+            },
+        })
+    end
+
     -- Set the buffer content
     vim.api.nvim_buf_set_lines(win_buf, 0, -1, false, {
         "",

@@ -85,6 +85,13 @@ local function clear(buf) vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1) end
 
 local function decorate(buf, win)
     if mode == "none" then return end
+
+    -- Prompt/select buffers are UI surfaces, not editable text. Indentation
+    -- overlays obscure their labels and can be rescheduled by CursorMoved.
+    if vim.bo[buf].buftype == "prompt" then
+        return
+    end
+
     local tw = buf_tabw(buf)
 
     local view = vim.fn.winsaveview()
@@ -134,7 +141,14 @@ local function decorate(buf, win)
                 -- if the entire indent is off-screen, don't draw anything
                 if visible > 0 then
                     -- only draw the visible part of the indent string
-                    local s_visible = s:sub(hidden + 1, hidden + visible)
+                    -- Indentation patterns may contain multibyte UTF-8
+                    -- characters (for example "·"). Slice by characters,
+                    -- not bytes, so visible columns stay aligned.
+                    local s_visible = vim.fn.strcharpart(
+                        s,
+                        hidden,
+                        visible
+                    )
 
                     vim.api.nvim_buf_set_extmark(buf, ns, lnum - 1, 0, {
                         virt_text = { { s_visible, "NonText" } },

@@ -1,32 +1,6 @@
-local funcs = require("config.funcs")
-local acc = require("accessor")
-funcs.require_or_nil("utils.word-count", {
-    message = "utils.word-count missing; continuing without eager preload",
-    silent = true,
-})
-local bedrocks_depth = funcs.require_or_nil("extensions.bedrocks-depth", {
-    message = "extensions.bedrocks-depth missing; skipping statusline setup",
-})
-local statusline = funcs.require_or_nil("customizations.statusline", {
-    message = "customizations.statusline missing; skipping statusline setup",
-})
-if not bedrocks_depth or not statusline then
-    return
-end
-local bedrocks_root = acc.paths.bedrocks.root
-
-local function set_statusline_variants()
-    local ok, base = pcall(vim.api.nvim_get_hl, 0, { name = "StatusLine", link = false })
-    if not ok or not base then return end
-    local bold, italic = { bold = true }, { italic = true }
-    if base.fg then bold.fg, italic.fg = base.fg, base.fg end
-    if base.bg then bold.bg, italic.bg = base.bg, base.bg end
-    if base.sp then bold.sp, italic.sp = base.sp, base.sp end
-    vim.api.nvim_set_hl(0, "StatusLineBold", bold)
-    vim.api.nvim_set_hl(0, "StatusLineItalic", italic)
-end
-vim.api.nvim_create_autocmd({ "VimEnter", "ColorScheme" }, { callback = set_statusline_variants })
-_G._StatusLineVariants_refresh = set_statusline_variants
+return function(context)
+    local bedrocks_root = context.root
+    local bedrocks_depth = context.depth
 
 -- Returns Bedrocks breadcrumb (no brackets) if inside the root; else filename.
 function _G.Bedrocks_or_filename()
@@ -111,23 +85,4 @@ bedrocks_depth.setup(
         },
     }
 )
-
-statusline.setup(
-    {
-        mode = "path_left",  -- "right" or "path_left"
-        show_words = true,
-        bedrocks_root = bedrocks_root,
-    }
-)
-
--- Netrw-specific refreshes: attach only after a netrw buffer exists (no early netrw init)
-vim.api.nvim_create_autocmd("FileType", {
-    pattern = "netrw",
-    callback = function(ev)
-        -- buffer-local light refresh hooks (safe; netrw reuses buffers)
-        vim.api.nvim_create_autocmd({ "BufEnter", "CursorHold", "CursorMoved" }, {
-            buffer = ev.buf,
-            callback = function() vim.cmd("redrawstatus") end,
-        })
-    end,
-})
+end

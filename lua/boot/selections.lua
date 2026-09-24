@@ -40,6 +40,15 @@ local Selections = {
             treesitter = true,
         },
 
+        interface = {
+            ansi = true,
+            checkhealth = true,
+        },
+
+        testing = {
+            init = false,
+        },
+
         customizations = {
             writing = true,
             statusline = true,
@@ -91,6 +100,39 @@ local Selections = {
             project_progress = true,
             casecon = true,
             dependencies = true,
+        },
+
+        commands = {
+            check_dependencies = true,
+            ec_id = true,
+            ec_insert = true,
+            indentation = true,
+            output = true,
+            shell = true,
+            workspace_diagnostics = true,
+        },
+
+        integrations = {
+            colorscheme = true,
+            indent_blankline = true,
+            limelight = true,
+            notify = true,
+            scrollbar = true,
+            statusline = true,
+            zen_mode = true,
+            gitsigns = true,
+            harpoon = true,
+            neoscroll = true,
+            telescope = true,
+            vim_commentary = true,
+            visimatch = true,
+            yanky = true,
+            d2 = true,
+            lsp = true,
+            mason_tools = true,
+            neorg = true,
+            luasnip = true,
+            treesitter = true,
         }
     },
 }
