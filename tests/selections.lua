@@ -4,6 +4,8 @@ return {
             loader = true,
             startup = true,
             swift_lsp = true,
+            lsp_diagnostic_copy = true,
+            lsp_symbol_library = true,
             boot = true,
             funcs = true,
             indentation = true,

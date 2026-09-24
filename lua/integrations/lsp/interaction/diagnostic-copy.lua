@@ -57,25 +57,22 @@ return function(context)
                 text = text:sub(1, MAX_LINE_LEN - 3) .. "..."
             end
             table.insert(out_lines, string.format("%" .. width .. "d | %s", abs_ln, text))
+
+            -- caret line: create spaces to align under column (approximate because of tabs)
+            if abs_ln - 1 == lnum0 then
+                local marker_col = col0 or 0
+                -- estimate prefix width: digits + " | " = width + 3
+                local prefix = string.rep(" ", width + 3)
+                -- we replace tabs so caret aligns better (tab -> single space). Not perfect for mixed tabs, but helpful.
+                local pre_substr = ln:sub(1, math.max(0, marker_col))
+                pre_substr = pre_substr:gsub("\t", " ") -- normalize
+                local padding = prefix .. pre_substr:gsub(".", function(c) return (c == "\t") and " " or " " end)
+                -- But rather than trying to count grapheme widths exactly, place caret under the column index (best-effort)
+                table.insert(out_lines, padding .. "^")
+            end
         end
 
-        -- caret line: create spaces to align under column (approximate because of tabs)
-        local caret_line = nil
-        if lnum0 >= start_line and lnum0 <= end_line then
-            local rel_index = lnum0 - start_line + 1
-            local marker_col = col0 or 0
-            -- estimate prefix width: digits + " | " = width + 3
-            local prefix = string.rep(" ", width + 3)
-            -- we replace tabs so caret aligns better (tab -> single space). Not perfect for mixed tabs, but helpful.
-            local target_line = lines[rel_index] or ""
-            local pre_substr = target_line:sub(1, math.max(0, marker_col))
-            pre_substr = pre_substr:gsub("\t", " ") -- normalize
-            local padding = prefix .. pre_substr:gsub(".", function(c) return (c == "\t") and " " or " " end)
-            -- But rather than trying to count grapheme widths exactly, place caret under the column index (best-effort)
-            caret_line = padding .. "^"
-        end
-
-        return table.concat(out_lines, "\n"), caret_line
+        return table.concat(out_lines, "\n")
     end
 
     local function _diag_to_text(d)
@@ -110,7 +107,6 @@ return function(context)
 
         -- snippet with caret (if buffer available)
         local snippet = nil
-        local caret = nil
         local ok, snippet_text = pcall(function()
             -- if buffer not loaded, try to use d.bufnr; else fallback to reading file
             local b = d.bufnr and vim.api.nvim_buf_is_loaded(d.bufnr) and d.bufnr or nil
@@ -130,10 +126,7 @@ return function(context)
         end)
 
         if ok and snippet_text and snippet_text ~= "" then
-            snippet, caret = snippet_text:match("^(.*)\n(.*)$")
-            -- Actually _get_snippet_with_caret returns (lines, caret); but our pcall returned that as single value
-            -- So adjust: if snippet_text is a table return, handle both cases. Simpler: call directly and unpack.
-            snippet, caret = _get_snippet_with_caret(d.bufnr or 0, lnum, col, CTX_LINES)
+            snippet = snippet_text
         end
 
         -- code id (LSP): pull from several possible places
@@ -151,7 +144,6 @@ return function(context)
         if snippet and snippet ~= "" then
             table.insert(parts, "```")
             table.insert(parts, snippet)
-            if caret then table.insert(parts, caret) end
             table.insert(parts, "```")
         end
         table.insert(parts, "> " .. message)
@@ -241,5 +233,7 @@ return function(context)
         copy_current = copy_current_diagnostic,
         open_float_and_copy = open_float_and_copy,
         copy_buffer = copy_buffer_diags,
+        format = _diag_to_text,
+        snippet = _get_snippet_with_caret,
     }
 end
