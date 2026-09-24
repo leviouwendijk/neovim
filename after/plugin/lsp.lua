@@ -546,16 +546,16 @@ mason_lspconfig.setup({
         'vimls',                       -- VimL (Vim script)
         'jsonls',                      -- JSON
         'yamlls',                      -- YAML
-        'ltex',
+        'ltex_plus',
         'zls'
     },
     handlers = {
         function(server)
-            if server == 'lua_ls' or server == 'ltex' then return end
+            if server == 'lua_ls' or server == 'ltex_plus' then return end
             lsp_zero.default_setup(server)
         end,
 
-        ltex = function() end,  -- <— prevent default_setup from also starting ltex
+        ltex_plus = function() end,  -- <— prevent default_setup from also starting ltex_plus
     }
 })
 

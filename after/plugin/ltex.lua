@@ -11,7 +11,7 @@ end
 
 -- Configure ltex
 -- lspconfig.ltex.setup({ -- deprecated
-vim.lsp.config('ltex', {
+vim.lsp.config('ltex_plus', {
     on_attach = function(client, bufnr)
         -- Call the default lsp-zero on_attach
         lsp_zero.on_attach(client, bufnr)
@@ -37,4 +37,4 @@ vim.lsp.config('ltex', {
     },
 })
 
-vim.lsp.enable('ltex')
+vim.lsp.enable('ltex_plus')

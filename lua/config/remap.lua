@@ -34,6 +34,7 @@ vim.keymap.set("n", "<leader>of", funcs.open_current_file, {
 vim.keymap.set("n", "<leader>op", funcs.open_current_path)
 vim.keymap.set("n", "<leader>cf", funcs.copy_filepath_to_clipboard)
 
+vim.g.omni_sql_no_default_maps = 1
 vim.keymap.set("i", "<C-c>", "<Esc>") -- shortcut control+c for escape (insert mode)
 vim.keymap.set("n", "<leader><leader>", function()
     vim.cmd("so")

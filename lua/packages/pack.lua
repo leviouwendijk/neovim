@@ -65,6 +65,7 @@ vim.pack.add({
     spec("VonHeikemen/lsp-zero.nvim"),
     spec("williamboman/mason.nvim"),
     spec("williamboman/mason-lspconfig.nvim"),
+    spec("WhoIsSethDaniel/mason-tool-installer.nvim"),
     spec("neovim/nvim-lspconfig"),
 
     spec("hrsh7th/nvim-cmp"),
