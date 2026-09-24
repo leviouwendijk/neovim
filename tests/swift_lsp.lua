@@ -121,6 +121,40 @@ if not has_mapping("x", "=") then
     )
 end
 
+local function has_buffer_mapping(mode, lhs)
+    local mapping =
+        vim.fn.maparg(
+            lhs,
+            mode,
+            false,
+            true
+        )
+
+    return type(mapping) == "table"
+        and next(mapping) ~= nil
+        and mapping.buffer == 1
+end
+
+local interaction_mappings = {
+    { "n", "gd" },
+    { "n", "[d" },
+    { "n", "<leader>vy" },
+    { "n", "<leader>vL" },
+}
+
+for _, mapping in ipairs(interaction_mappings) do
+    if not has_buffer_mapping(
+        mapping[1],
+        mapping[2]
+    ) then
+        fail(
+            "LSP interaction attach did not install "
+                .. mapping[2]
+                .. " mapping"
+        )
+    end
+end
+
 local function contains_symbol(items, target)
     for _, item in ipairs(items or {}) do
         if item.name == target then
