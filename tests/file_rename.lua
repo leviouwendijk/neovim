@@ -14,17 +14,17 @@ local function capture_notifications(body)
     local previous_notify = vim.notify
     local notifications = {}
 
-    vim.notify = function(message, level, options)
+    rawset(vim, "notify", function(message, level, options)
         table.insert(notifications, {
             message = tostring(message),
             level = level,
             options = options,
         })
-    end
+    end)
 
     local ok, err = pcall(body, notifications)
 
-    vim.notify = previous_notify
+    rawset(vim, "notify", previous_notify)
 
     if not ok then
         error(err, 0)
@@ -187,10 +187,11 @@ return testing.suite("file_rename", {
                 local loaded =
                     vim.api.nvim_get_current_buf()
 
-                vim.ui.input = function(_, callback)
+                rawset(vim.ui, "input", function(_, callback)
                     callback(nil)
-                end
+                end)
 
+                ---@type { status: string }|nil
                 local completed = nil
 
                 local notifications = capture_notifications(
@@ -214,6 +215,7 @@ return testing.suite("file_rename", {
                     completed,
                     "cancel callback completed"
                 )
+                assert(completed ~= nil)
                 expect.equal(
                     completed.status,
                     "cancelled"
@@ -248,11 +250,12 @@ return testing.suite("file_rename", {
                 )
             end
 
-            pcall(
-                vim.cmd,
-                "silent! bwipeout! "
-                    .. vim.fn.bufnr(source)
-            )
+            pcall(function()
+                vim.cmd(
+                    "silent! bwipeout! "
+                        .. vim.fn.bufnr(source)
+                )
+            end)
 
             if not ok then
                 error(err, 0)
@@ -406,10 +409,13 @@ return testing.suite("file_rename", {
                     { row, 0 }
                 )
 
-                vim.ui.input =
+                rawset(
+                    vim.ui,
+                    "input",
                     function(_, callback)
                         callback("renamed.txt")
                     end
+                )
 
                 local notifications = capture_notifications(
                     function()
@@ -448,8 +454,10 @@ return testing.suite("file_rename", {
                 )
             end)
 
-            vim.ui.input = previous_input
-            pcall(vim.cmd, "silent enew")
+            rawset(vim.ui, "input", previous_input)
+            pcall(function()
+                vim.cmd("silent enew")
+            end)
 
             if not ok then
                 error(err, 0)

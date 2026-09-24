@@ -15,7 +15,11 @@ local function insert_file_content(filepath)
         file:close()
 
         -- Split content by newlines and keep empty lines exactly as they are
-        local lines = vim.split(content, "\n", true)
+        local lines = vim.split(
+            content,
+            "\n",
+            { plain = true }
+        )
 
         -- Insert each line individually to preserve formatting exactly as in the file
         vim.api.nvim_put(lines, "l", true, true)

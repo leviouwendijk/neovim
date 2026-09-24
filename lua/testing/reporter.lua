@@ -5,7 +5,7 @@ local Reporter = {}
 Reporter.__index = Reporter
 
 local function format_duration(duration_ns)
-    local milliseconds = duration_ns / 1_000_000
+    local milliseconds = duration_ns / 1000000
     if milliseconds < 1 then
         return string.format("%.3fms", milliseconds)
     end

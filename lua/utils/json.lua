@@ -54,10 +54,14 @@ local function parse_value(str, pos)
             if char == "}" then return obj, new_pos + 1 end
             local key, value
             key, new_pos = parse_value(str, new_pos)
-            new_pos = str:match("^%s*", new_pos):len() + new_pos
-            if str:sub(new_pos, new_pos) ~= ":" then decode_error(new_pos, "Expected ':'") end
-            value, new_pos = parse_value(str, new_pos + 1)
-            obj[key] = value
+            if type(key) ~= "string" then
+                decode_error(new_pos, "Expected string object key")
+            else
+                new_pos = str:match("^%s*", new_pos):len() + new_pos
+                if str:sub(new_pos, new_pos) ~= ":" then decode_error(new_pos, "Expected ':'") end
+                value, new_pos = parse_value(str, new_pos + 1)
+                obj[key] = value
+            end
             new_pos = str:match("^%s*", new_pos):len() + new_pos
             char = str:sub(new_pos, new_pos)
             if char == "}" then return obj, new_pos + 1 end

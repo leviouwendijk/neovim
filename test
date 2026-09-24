@@ -1,0 +1,7 @@
+#!/bin/sh
+
+# run warning checks
+lua-language-server --check=. --checklevel=Warning --check_format=pretty
+
+# run test suite
+nvim --headless -u tests/minimal_init.lua -l tests/run.lua

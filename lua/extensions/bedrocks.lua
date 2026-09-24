@@ -152,9 +152,21 @@ local function iso_to_epoch(ts)
     if not ts then return nil end
     local y, m, d, H, M, S = ts:match("^(%d+)%-(%d+)%-(%d+)T(%d+):(%d+):(%d+)")
     if not y then return nil end
+
+    local year = tonumber(y)
+    local month = tonumber(m)
+    local day = tonumber(d)
+    local hour = tonumber(H)
+    local minute = tonumber(M)
+    local second = tonumber(S)
+
+    if not (year and month and day and hour and minute and second) then
+        return nil
+    end
+
     return os.time({
-        year = tonumber(y), month = tonumber(m), day = tonumber(d),
-        hour = tonumber(H), min = tonumber(M), sec = tonumber(S),
+        year = year, month = month, day = day,
+        hour = hour, min = minute, sec = second,
     })
 end
 

@@ -114,6 +114,11 @@ return testing.suite(
                                 code = "example-code",
                             })
 
+                        assert(
+                            rendered ~= nil,
+                            "diagnostic formatter returned nil"
+                        )
+
                         expect.truthy(
                             contains(
                                 rendered,

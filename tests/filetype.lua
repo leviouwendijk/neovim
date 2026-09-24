@@ -156,16 +156,34 @@ return testing.suite("filetype", {
                     fixture:path("mixed")
                 )
 
+            if not chunks then
+                error("missing filetype stats chunks")
+            end
+
+            local swift_chunk = chunks[1]
+            local lua_chunk = chunks[2]
+            local markdown_chunk = chunks[3]
+
+            if not swift_chunk then
+                error("missing Swift stats chunk")
+            end
+            if not lua_chunk then
+                error("missing Lua stats chunk")
+            end
+            if not markdown_chunk then
+                error("missing Markdown stats chunk")
+            end
+
             expect.equal(
-                chunks[1][1],
+                swift_chunk[1],
                 ".swift: 50% "
             )
             expect.equal(
-                chunks[2][1],
+                lua_chunk[1],
                 ".lua: 25% "
             )
             expect.equal(
-                chunks[3][1],
+                markdown_chunk[1],
                 ".md: 25% "
             )
         end

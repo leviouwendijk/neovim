@@ -138,7 +138,7 @@ return function(context)
 
     function M.toggle()
         local b = RunOut.buf
-        if _is_visible_buf(b) then
+        if b and _is_visible_buf(b) then
             local win = vim.fn.win_findbuf(b)[1]
             if win then vim.api.nvim_win_close(win, true) end
             return

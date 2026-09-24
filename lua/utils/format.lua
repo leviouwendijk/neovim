@@ -85,6 +85,7 @@ function FormatAuto(range)
     local start_line = range.line1
     local end_line = range.line2
     local lines = vim.fn.getline(start_line, end_line)
+    ---@cast lines string[]
 
     -- Check what type of formatting is needed
     local has_func = false

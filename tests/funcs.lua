@@ -97,9 +97,9 @@ return testing.suite("funcs", {
             local messages = {}
 
             local ok, err = pcall(function()
-                vim.notify = function(message)
+                rawset(vim, "notify", function(message)
                     table.insert(messages, message)
-                end
+                end)
 
                 local key =
                     "tests:funcs:warn_once:"
@@ -112,7 +112,7 @@ return testing.suite("funcs", {
                 expect.equal(messages[1], "first")
             end)
 
-            vim.notify = previous_notify
+            rawset(vim, "notify", previous_notify)
 
             if not ok then
                 error(err, 0)

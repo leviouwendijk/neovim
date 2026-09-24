@@ -133,6 +133,11 @@ return testing.suite(
                         },
                     })
 
+                assert(
+                    lines ~= nil,
+                    "definition result did not produce preview lines"
+                )
+
                 local rendered =
                     table.concat(lines, "\n")
 

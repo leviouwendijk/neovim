@@ -52,6 +52,10 @@ function refreshStorageFile()
 
     -- Reopen the file to determine which lines to keep
     storage_file = io.open(storage_filename, 'r')
+    if not storage_file then
+        print("Error: Unable to reopen storage file for reading")
+        return
+    end
     for line in storage_file:lines() do
         local uuid, full_filepath = line:match("(%S+)%s+(.+)")
         if full_filepath then
@@ -66,6 +70,10 @@ function refreshStorageFile()
 
     -- Rewrite the file with only the valid or latest entries
     storage_file = io.open(storage_filename, 'w')
+    if not storage_file then
+        print("Error: Unable to open storage file for writing")
+        return
+    end
     for _, line in ipairs(lines_to_keep) do
         storage_file:write(line .. '\n')
     end
@@ -78,6 +86,10 @@ function SaveUUIDToFile(uuid, filename, filepath)
     local home = os.getenv("HOME")
     local storage_filename = home .. "/myworkdir/.uuid-index" 
     local storage_file = io.open(storage_filename, 'a')
+    if not storage_file then
+        print("Error: Unable to open storage file for appending")
+        return
+    end
 
     local full_filepath = vim.fn.fnamemodify(filepath, ':p')  -- Normalize to an absolute path
 
@@ -124,6 +136,10 @@ function generateUUID(filename, filepath)
 
     -- If no existing UUID, generate a new one
     local handle = io.popen('uuidgen')
+    if not handle then
+        print("Error: Unable to run uuidgen")
+        return nil
+    end
     local uuid = handle:read('*a')
     handle:close()
     uuid = uuid:gsub('^%s*(.-)%s*$', '%1')  -- Trim any excess whitespace

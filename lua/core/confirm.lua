@@ -2,7 +2,10 @@ local Confirmation = {}
 
 function Confirmation.confirm_action(prompt)
     print(prompt .. " (y/n)")
-    local response = vim.fn.nr2char(vim.fn.getchar())
+    local response = vim.fn.getchar()
+    if type(response) == "number" then
+        response = vim.fn.nr2char(response)
+    end
     return response == 'y' or response == 'Y'
 end
 

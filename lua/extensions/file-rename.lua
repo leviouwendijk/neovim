@@ -259,6 +259,14 @@ function M.rename_file(directory)
         directory or vim.fn.getcwd()
     )
 
+    if not directory then
+        funcs.safe_notify(
+            "Invalid directory",
+            vim.log.levels.WARN
+        )
+        return
+    end
+
     local telescope = telescope_modules()
 
     if not telescope then

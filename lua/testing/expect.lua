@@ -133,6 +133,7 @@ function Expect.file_contents(path, expected, label)
             actual = tostring(open_error),
             expected = path,
         })
+        return
     end
 
     local actual = file:read("*a")

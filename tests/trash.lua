@@ -25,6 +25,7 @@ return testing.suite("trash", {
             local previous_test_absolute = _G.TestAbsoluteFilepath
             local previous_has_executable = funcs.has_executable
 
+            ---@type { buffer: integer, config: { experimental: { ghost_text: boolean } } }|nil
             local configured = nil
             local source_buf = nil
             local picker_buf = nil
@@ -56,7 +57,11 @@ return testing.suite("trash", {
 
                 pcall(vim.fn.delete, fixture_root, "rf")
 
-                funcs.has_executable = previous_has_executable
+                rawset(
+                    funcs,
+                    "has_executable",
+                    previous_has_executable
+                )
                 package.loaded["cmp"] = previous_cmp
                 package.loaded["core.trash"] = previous_trash
                 _G.NetrwTrash = previous_netrw_trash
@@ -77,9 +82,13 @@ return testing.suite("trash", {
                     },
                 }
 
-                funcs.has_executable = function()
-                    return true
-                end
+                rawset(
+                    funcs,
+                    "has_executable",
+                    function()
+                        return true
+                    end
+                )
 
                 package.loaded["core.trash"] = nil
 
@@ -122,6 +131,7 @@ return testing.suite("trash", {
                     configured,
                     "trash picker configured cmp"
                 )
+                assert(configured ~= nil)
                 expect.equal(
                     configured.buffer,
                     picker_buf,
@@ -172,18 +182,27 @@ return testing.suite("trash", {
 
                 expect.not_nil(j, "trash picker j mapping")
                 expect.not_nil(k, "trash picker k mapping")
+
+                local j_callback =
+                    j and j.callback
+                local k_callback =
+                    k and k.callback
+
                 expect.truthy(
-                    type(j.callback) == "function",
+                    type(j_callback) == "function",
                     "trash picker j mapping uses Lua callback"
                 )
                 expect.truthy(
-                    type(k.callback) == "function",
+                    type(k_callback) == "function",
                     "trash picker k mapping uses Lua callback"
                 )
 
+                assert(type(j_callback) == "function")
+                assert(type(k_callback) == "function")
+
                 for _ = 1, 128 do
-                    j.callback()
-                    k.callback()
+                    j_callback()
+                    k_callback()
                 end
 
                 indentation.set("countdotsend")

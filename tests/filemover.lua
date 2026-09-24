@@ -309,9 +309,21 @@ return testing.suite("filemover", {
         local marked, mark_error = netrw.marked_paths()
 
         expect.nil_value(mark_error, "read Netrw marks")
+        if not marked then
+            error(
+                "failed to read Netrw marks: "
+                    .. tostring(mark_error)
+            )
+        end
         expect.equal(#marked, 1, "mf action created exactly one mark")
 
-        local normalized_mark = core.normalize_path(marked[1])
+        local marked_path = marked[1]
+        if not marked_path then
+            error(
+                "mf action did not produce a marked path"
+            )
+        end
+        local normalized_mark = core.normalize_path(marked_path)
 
         expect.equal(
             normalized_mark,
