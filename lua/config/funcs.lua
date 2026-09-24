@@ -222,6 +222,26 @@ function M.once_require_or_nil(name, opts)
     end
 end
 
+function M.prompt_input(prompt, callback, input)
+    local read = input or vim.ui.input
+
+    read(
+        {
+            prompt = prompt,
+        },
+        function(value)
+            -- Ctrl-C / Esc cancellation is represented as nil by vim.ui.input.
+            -- Treat that as an intentional interrupt of the action: stop here,
+            -- do not call the action callback, and do not turn it into an error.
+            if value == nil then
+                return
+            end
+
+            callback(value)
+        end
+    )
+end
+
 function M.current_file()
     return vim.fn.expand("%:p")
 end

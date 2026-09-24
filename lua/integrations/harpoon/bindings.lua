@@ -1,3 +1,5 @@
+local funcs = require("config.funcs")
+
 return function(mark, ui)
 -- vim.keymap.set("n", "<leader>a", mark.add_file)
 vim.keymap.set("n", "<leader>ha", mark.add_file)
@@ -56,13 +58,20 @@ vim.api.nvim_create_autocmd("FileType", {
 -- for all slots): asks for a number, then jumps to that file.
 -----------------------------------------------------------------------
 vim.keymap.set("n", "<leader>hj", function()
-    local raw = vim.fn.input("Harpoon index: ")
-    local i = tonumber(raw)
-    if i then
-        ui.nav_file(i)
-    else
-        vim.notify("Invalid index: " .. tostring(raw), vim.log.levels.WARN)
-    end
+    funcs.prompt_input(
+        "Harpoon index: ",
+        function(raw)
+            local i = tonumber(raw)
+            if i then
+                ui.nav_file(i)
+            else
+                vim.notify(
+                    "Invalid index: " .. tostring(raw),
+                    vim.log.levels.WARN
+                )
+            end
+        end
+    )
 end, { desc = "Harpoon: jump to index" })
 
 -----------------------------------------------------------------------
@@ -71,17 +80,28 @@ end, { desc = "Harpoon: jump to index" })
 -- (Harpoon v1's rm_file() targets the *current buffer*.)
 -----------------------------------------------------------------------
 vim.keymap.set("n", "<leader>hx", function()
-    local raw = vim.fn.input("Remove index: ")
-    local i = tonumber(raw)
-    if not i then
-        vim.notify("Invalid index: " .. tostring(raw), vim.log.levels.WARN)
-        return
-    end
-    -- Jump to the slot (no-op if out of range)
-    ui.nav_file(i)
-    -- Remove whatever is now current
-    mark.rm_file()
-    vim.notify(("Harpoon: removed slot %d (if it existed)"):format(i), vim.log.levels.INFO)
+    funcs.prompt_input(
+        "Remove index: ",
+        function(raw)
+            local i = tonumber(raw)
+            if not i then
+                vim.notify(
+                    "Invalid index: " .. tostring(raw),
+                    vim.log.levels.WARN
+                )
+                return
+            end
+
+            -- Jump to the slot (no-op if out of range)
+            ui.nav_file(i)
+            -- Remove whatever is now current
+            mark.rm_file()
+            vim.notify(
+                ("Harpoon: removed slot %d (if it existed)"):format(i),
+                vim.log.levels.INFO
+            )
+        end
+    )
 end, { desc = "Harpoon: remove by index" })
 
 -----------------------------------------------------------------------

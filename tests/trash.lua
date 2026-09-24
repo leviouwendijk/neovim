@@ -287,6 +287,466 @@ return testing.suite("trash", {
             end
         end
     ),
+
+    testing.test(
+        "detects_macos_and_xdg_trash_contents_without_matching_root",
+        function()
+            local previous_xdg =
+                vim.env.XDG_DATA_HOME
+            local xdg =
+                vim.fn.tempname()
+
+            vim.env.XDG_DATA_HOME = xdg
+
+            local trash =
+                require("core.trash")
+            local home_trash =
+                vim.fs.joinpath(
+                    vim.uv.os_homedir() or "",
+                    ".Trash"
+                )
+            local xdg_trash =
+                vim.fs.joinpath(
+                    xdg,
+                    "Trash",
+                    "files"
+                )
+
+            local ok, err =
+                pcall(
+                    function()
+                        expect.truthy(
+                            trash.is_in_trash(
+                                vim.fs.joinpath(
+                                    home_trash,
+                                    "entry.txt"
+                                )
+                            ),
+                            "macOS trash contents are detected"
+                        )
+                        expect.falsy(
+                            trash.is_in_trash(
+                                home_trash
+                            ),
+                            "trash root itself is not an item"
+                        )
+
+                        expect.truthy(
+                            trash.is_in_trash(
+                                vim.fs.joinpath(
+                                    xdg_trash,
+                                    "entry.txt"
+                                )
+                            ),
+                            "XDG trash contents are detected"
+                        )
+                        expect.falsy(
+                            trash.is_in_trash(
+                                xdg_trash
+                            ),
+                            "XDG trash root itself is not an item"
+                        )
+                    end
+                )
+
+            vim.env.XDG_DATA_HOME =
+                previous_xdg
+
+            if not ok then
+                error(err, 0)
+            end
+        end
+    ),
+
+    testing.test(
+        "permanent_delete_unlinks_symlink_and_removes_directory_tree",
+        function()
+            local trash =
+                require("core.trash")
+            local root =
+                vim.fn.tempname()
+            local target =
+                root .. "/target.txt"
+            local link =
+                root .. "/link.txt"
+            local tree =
+                root .. "/tree"
+
+            local ok, err =
+                pcall(
+                    function()
+                        vim.fn.mkdir(
+                            tree .. "/nested",
+                            "p"
+                        )
+                        vim.fn.writefile(
+                            { "target" },
+                            target
+                        )
+                        vim.fn.writefile(
+                            { "nested" },
+                            tree
+                                .. "/nested/file.txt"
+                        )
+
+                        local linked, link_error =
+                            vim.uv.fs_symlink(
+                                target,
+                                link
+                            )
+                        expect.truthy(
+                            linked,
+                            tostring(link_error)
+                        )
+
+                        local deleted_link,
+                            delete_link_error =
+                            trash.permanent_delete(
+                                link
+                            )
+                        expect.truthy(
+                            deleted_link,
+                            tostring(
+                                delete_link_error
+                            )
+                        )
+                        expect.nil_value(
+                            vim.uv.fs_lstat(link),
+                            "symlink entry is removed"
+                        )
+                        expect.not_nil(
+                            vim.uv.fs_stat(target),
+                            "symlink target survives"
+                        )
+
+                        local deleted_tree,
+                            delete_tree_error =
+                            trash.permanent_delete(
+                                tree
+                            )
+                        expect.truthy(
+                            deleted_tree,
+                            tostring(
+                                delete_tree_error
+                            )
+                        )
+                        expect.nil_value(
+                            vim.uv.fs_lstat(tree),
+                            "directory tree is removed recursively"
+                        )
+                    end
+                )
+
+            pcall(
+                vim.fn.delete,
+                root,
+                "rf"
+            )
+
+            if not ok then
+                error(err, 0)
+            end
+        end
+    ),
+
+    testing.test(
+        "trash_item_requires_two_move_enter_confirmations_for_permanent_delete",
+        function()
+            local previous_cmp =
+                package.loaded["cmp"]
+            local previous_trash =
+                package.loaded["core.trash"]
+            local previous_netrw_trash =
+                _G.NetrwTrash
+            local previous_test_absolute =
+                _G.TestAbsoluteFilepath
+            local previous_has_executable =
+                funcs.has_executable
+            local previous_xdg =
+                vim.env.XDG_DATA_HOME
+
+            local fixture_root =
+                vim.fn.tempname()
+            local trash_files =
+                fixture_root
+                .. "/Trash/files"
+            local filepath =
+                trash_files
+                .. "/entry.txt"
+            local source_buf = nil
+            local has_executable_calls = 0
+
+            local function cleanup()
+                for _, win in ipairs(
+                    vim.api.nvim_list_wins()
+                ) do
+                    local buf =
+                        vim.api.nvim_win_get_buf(
+                            win
+                        )
+
+                    if
+                        vim.bo[buf].filetype
+                        == "trash-confirm"
+                    then
+                        pcall(
+                            vim.api.nvim_win_close,
+                            win,
+                            true
+                        )
+                    end
+                end
+
+                if
+                    source_buf
+                    and vim.api.nvim_buf_is_valid(
+                        source_buf
+                    )
+                then
+                    pcall(
+                        vim.api.nvim_buf_delete,
+                        source_buf,
+                        {
+                            force = true,
+                        }
+                    )
+                end
+
+                pcall(
+                    vim.fn.delete,
+                    fixture_root,
+                    "rf"
+                )
+
+                vim.env.XDG_DATA_HOME =
+                    previous_xdg
+
+                rawset(
+                    funcs,
+                    "has_executable",
+                    previous_has_executable
+                )
+                package.loaded["cmp"] =
+                    previous_cmp
+                package.loaded["core.trash"] =
+                    previous_trash
+                _G.NetrwTrash =
+                    previous_netrw_trash
+                _G.TestAbsoluteFilepath =
+                    previous_test_absolute
+            end
+
+            local ok, err =
+                pcall(
+                    function()
+                        vim.env.XDG_DATA_HOME =
+                            fixture_root
+                        vim.fn.mkdir(
+                            trash_files,
+                            "p"
+                        )
+                        vim.fn.writefile(
+                            { "delete me" },
+                            filepath
+                        )
+
+                        package.loaded["cmp"] = {
+                            setup = {
+                                buffer =
+                                    function() end,
+                            },
+                        }
+
+                        rawset(
+                            funcs,
+                            "has_executable",
+                            function()
+                                has_executable_calls =
+                                    has_executable_calls
+                                    + 1
+                                return false
+                            end
+                        )
+
+                        package.loaded["core.trash"] =
+                            nil
+
+                        source_buf =
+                            vim.api.nvim_create_buf(
+                                false,
+                                true
+                            )
+                        vim.api.nvim_set_current_buf(
+                            source_buf
+                        )
+                        vim.api.nvim_buf_set_name(
+                            source_buf,
+                            trash_files .. "/"
+                        )
+                        vim.api.nvim_buf_set_lines(
+                            source_buf,
+                            0,
+                            -1,
+                            false,
+                            {
+                                "entry.txt",
+                            }
+                        )
+
+                        require("core.trash")
+                        _G.NetrwTrash(false)
+
+                        local first_buf =
+                            vim.api.nvim_get_current_buf()
+                        local first_win =
+                            vim.api.nvim_get_current_win()
+                        local first_lines =
+                            vim.api.nvim_buf_get_lines(
+                                first_buf,
+                                0,
+                                -1,
+                                false
+                            )
+
+                        expect.equal(
+                            first_lines[4],
+                            "  Permanently delete"
+                        )
+                        expect.equal(
+                            first_lines[5],
+                            "  Cancel"
+                        )
+                        expect.equal(
+                            vim.api.nvim_win_get_cursor(
+                                first_win
+                            )[1],
+                            5,
+                            "first permanent-delete prompt defaults to Cancel"
+                        )
+                        expect.not_nil(
+                            vim.uv.fs_lstat(
+                                filepath
+                            ),
+                            "first prompt has not deleted the file"
+                        )
+
+                        local first_up =
+                            mapping_for(
+                                first_buf,
+                                "k"
+                            )
+                        local first_enter =
+                            mapping_for(
+                                first_buf,
+                                "<CR>"
+                            )
+
+                        expect.not_nil(first_up)
+                        expect.not_nil(first_enter)
+                        assert(
+                            first_up
+                                and type(first_up.callback)
+                                    == "function"
+                        )
+                        assert(
+                            first_enter
+                                and type(first_enter.callback)
+                                    == "function"
+                        )
+
+                        first_up.callback()
+                        first_enter.callback()
+
+                        local final_buf =
+                            vim.api.nvim_get_current_buf()
+                        local final_win =
+                            vim.api.nvim_get_current_win()
+                        local final_lines =
+                            vim.api.nvim_buf_get_lines(
+                                final_buf,
+                                0,
+                                -1,
+                                false
+                            )
+
+                        expect.equal(
+                            final_lines[4],
+                            "  Delete permanently"
+                        )
+                        expect.equal(
+                            final_lines[5],
+                            "  Cancel"
+                        )
+                        expect.truthy(
+                            final_lines[2]:find(
+                                "This cannot be undone.",
+                                1,
+                                true
+                            ) ~= nil,
+                            "final confirmation states irreversibility"
+                        )
+                        expect.equal(
+                            vim.api.nvim_win_get_cursor(
+                                final_win
+                            )[1],
+                            5,
+                            "final confirmation also defaults to Cancel"
+                        )
+                        expect.not_nil(
+                            vim.uv.fs_lstat(
+                                filepath
+                            ),
+                            "first confirmation alone does not delete"
+                        )
+
+                        local final_up =
+                            mapping_for(
+                                final_buf,
+                                "k"
+                            )
+                        local final_enter =
+                            mapping_for(
+                                final_buf,
+                                "<CR>"
+                            )
+
+                        expect.not_nil(final_up)
+                        expect.not_nil(final_enter)
+                        assert(
+                            final_up
+                                and type(final_up.callback)
+                                    == "function"
+                        )
+                        assert(
+                            final_enter
+                                and type(final_enter.callback)
+                                    == "function"
+                        )
+
+                        final_up.callback()
+                        final_enter.callback()
+
+                        expect.nil_value(
+                            vim.uv.fs_lstat(
+                                filepath
+                            ),
+                            "file is removed only after both confirmations"
+                        )
+                        expect.equal(
+                            has_executable_calls,
+                            0,
+                            "permanent deletion does not require trash helper"
+                        )
+                    end
+                )
+
+            cleanup()
+
+            if not ok then
+                error(err, 0)
+            end
+        end
+    ),
 }, {
     title = "Trash",
 })

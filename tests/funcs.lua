@@ -166,6 +166,58 @@ return testing.suite("funcs", {
             end)
         end
     ),
+
+    testing.test(
+        "prompt_input_delivers_value_and_treats_nil_as_cancel",
+        function()
+            local delivered = {}
+
+            funcs.prompt_input(
+                "Prompt > ",
+                function(value)
+                    table.insert(
+                        delivered,
+                        value
+                    )
+                end,
+                function(options, callback)
+                    expect.equal(
+                        options.prompt,
+                        "Prompt > "
+                    )
+                    callback(nil)
+                end
+            )
+
+            expect.equal(
+                #delivered,
+                0,
+                "cancelled input does not continue the action"
+            )
+
+            funcs.prompt_input(
+                "Prompt > ",
+                function(value)
+                    table.insert(
+                        delivered,
+                        value
+                    )
+                end,
+                function(_, callback)
+                    callback("needle")
+                end
+            )
+
+            expect.equal(
+                #delivered,
+                1
+            )
+            expect.equal(
+                delivered[1],
+                "needle"
+            )
+        end
+    ),
 }, {
     title = "Config funcs",
 })

@@ -166,10 +166,15 @@ vim.keymap.set("n", "<leader>ps", function()
         return
     end
 
-    builtin.grep_string({
-        search = vim.fn.input("Grep > "),
-        hidden = true,
-    })
+    funcs.prompt_input(
+        "Grep > ",
+        function(search)
+            builtin.grep_string({
+                search = search,
+                hidden = true,
+            })
+        end
+    )
 end, {
     desc = "Grep string",
 })
