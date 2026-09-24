@@ -58,7 +58,7 @@ function M.refresh(ctx)
     if ctx.dir and (vim.uv or vim.loop).fs_stat(ctx.dir) then
         vim.cmd(
             "silent keepalt keepjumps edit "
-                .. vim.fn.fnameescape(ctx.dir)
+            .. vim.fn.fnameescape(ctx.dir)
         )
     end
 

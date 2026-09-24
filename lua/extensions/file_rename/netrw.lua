@@ -62,11 +62,11 @@ end
 function M.refresh(directory, target_name)
     local win = vim.api.nvim_get_current_win()
     local previous_cursor =
-        vim.api.nvim_win_get_cursor(win)
+    vim.api.nvim_win_get_cursor(win)
 
     vim.cmd(
         "silent keepalt keepjumps edit "
-            .. vim.fn.fnameescape(directory)
+        .. vim.fn.fnameescape(directory)
     )
 
     if vim.bo.filetype ~= "netrw"
@@ -76,7 +76,7 @@ function M.refresh(directory, target_name)
     end
 
     local line_count =
-        vim.api.nvim_buf_line_count(0)
+    vim.api.nvim_buf_line_count(0)
 
     for row = 1, line_count do
         vim.api.nvim_win_set_cursor(

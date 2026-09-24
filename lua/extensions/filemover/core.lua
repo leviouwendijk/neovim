@@ -183,8 +183,8 @@ function M.move_entry(source, target_dir)
     if not ok then
         local detail = tostring(code or err or "unknown error")
         local cross_device =
-            detail:find("EXDEV", 1, true)
-            or detail:lower():find("cross-device", 1, true)
+        detail:find("EXDEV", 1, true)
+        or detail:lower():find("cross-device", 1, true)
 
         return {
             status = "error",

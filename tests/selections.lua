@@ -7,6 +7,8 @@ return {
             lsp_diagnostic_copy = true,
             lsp_symbol_library = true,
             format = true,
+            output = true,
+            nicetstamp = true,
             boot = true,
             funcs = true,
             indentation = true,
