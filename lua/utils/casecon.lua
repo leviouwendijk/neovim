@@ -24,13 +24,14 @@ M.config = {
 local function extract_identifiers_from_swift(lines)
     local results = {}
 
-    for _, line in ipairs(lines) do
+    for index, line in ipairs(lines) do
         -- Match indentation, a keyword, and a candidate name only if it looks like a decl (… : or … =)
         local indent, keyword, name = line:match("^([ \t]*)(%a+)[ \t]+([%a_][%w_]*)[ \t]*[:=]")
         -- Only accept Swift decl keywords we care about
         if indent and (keyword == "let" or keyword == "var") and name then
             table.insert(results, {
                 name = name,
+                line_index = index,
                 original_line = line,
                 indent = indent,
                 keyword = keyword,
@@ -95,41 +96,28 @@ end
 -- ============================================================================
 -- HELPER: Replace identifiers in lines while preserving structure
 -- ============================================================================
-local function escape_lua_magic(s)
-    -- Escape Lua pattern magic characters
-    return (s:gsub("([%^%$%(%)%%%.%[%]%*%+%-%?])","%%%1"))
-end
-
-local function replace_identifiers_in_selection(extracted_info, converted_names)
+local function replace_identifiers_in_selection(extracted_info, converted_names, original_lines)
     if #extracted_info ~= #converted_names then
-        notify.error("casecon: extracted count != converted count (internal error)")
+        notify.error("casecon: extracted count != converted count")
         return nil
     end
 
-    local out = {}
+    -- Keep every original line, including non-declarations and blank lines.
+    local out = vim.deepcopy(original_lines)
 
     for i, info in ipairs(extracted_info) do
-        local old_name = info.name
+        local original = original_lines[info.line_index]
+        local prefix, old_name, suffix = original:match(
+            "^([ \t]*%a+[ \t]+)([%a_][%w_]*)([ \t]*[:=].*)$"
+        )
         local new_name = converted_names[i]
-        local line     = info.original_line
 
-        -- Build a pattern that targets ONLY the decl identifier right after the keyword.
-        --  ^([ \t]*)   -> capture indent (not used, but keeps the anchor honest)
-        --  keyword[ \t]+
-        --  (old_name)  -> capture the identifier token we want to replace
-        --  ([ \t]*[:=])-> ensure it's a decl (colon type or equals initializer)
-        local pat = "^([ \t]*)" .. info.keyword .. "[ \t]+(" .. escape_lua_magic(old_name) .. ")([ \t]*[:=])"
-
-        -- Replace just that identifier token; keep indent, keyword spacing, and the following punctuation intact
-        local replaced, n = line:gsub(pat, "%1" .. info.keyword .. " " .. new_name .. "%3")
-
-        -- Fallback: if not matched (e.g. weird spacing), try a looser variant
-        if n == 0 then
-            local pat_loose = "^([ \t]*)" .. info.keyword .. "[ \t]+(" .. escape_lua_magic(old_name) .. ")(.*[:=])"
-            replaced = (line:gsub(pat_loose, "%1" .. info.keyword .. " " .. new_name .. "%3"))
+        if not prefix or old_name ~= info.name or type(new_name) ~= "string" then
+            notify.error("casecon: declaration changed or invalid conversion result")
+            return nil
         end
 
-        table.insert(out, replaced)
+        out[info.line_index] = prefix .. new_name .. suffix
     end
 
     return out
@@ -139,85 +127,158 @@ end
 -- PUBLIC API: Main conversion function
 -- ============================================================================
 
----@param style string|nil: target case style (defaults to config.default_style)
-function M.convert_selection(style)
-    -- Get the current selection bounds
-    local _, start_line, start_col, _ = unpack(vim.fn.getpos("'<"))
-    local _, end_line, end_col, _ = unpack(vim.fn.getpos("'>"))
-
-    if start_line > end_line or (start_line == end_line and start_col > end_col) then
-        notify.warn("casecon: invalid selection")
+-- Default mode: convert the exact visual character selection, or a linewise
+-- list of identifier-only lines. Do not implicitly parse Swift declarations.
+function M.convert_selection(style, opts)
+    if opts.range == 0 then
+        notify.warn("casecon: select text first (visual mode), then use :Casecon")
         return
     end
 
-    -- Read selected lines
-    local selected_lines = vim.api.nvim_buf_get_lines(0, start_line - 1, end_line, false)
+    local first, last = opts.line1, opts.line2
+    local _, mark_first, start_col = unpack(vim.fn.getpos("'<"))
+    local _, mark_last, end_col = unpack(vim.fn.getpos("'>"))
 
-    if not selected_lines or #selected_lines == 0 then
-        notify.warn("casecon: no lines in selection")
+    if vim.fn.visualmode() == "v" and first == mark_first and last == mark_last then
+        if first ~= last then
+            notify.warn("casecon: multiline characterwise selection is unsupported; select identifier lines with V")
+            return
+        end
+
+        local line = vim.api.nvim_buf_get_lines(0, first - 1, first, false)[1]
+        if not line or #line == 0 then
+            notify.warn("casecon: empty selection")
+            return
+        end
+
+        -- getpos columns are one-based byte offsets; the end mark is inclusive.
+        -- Compute the exclusive end at a UTF-8 character boundary.
+        local begin_byte = math.max(0, math.min(#line, start_col - 1))
+        local final_byte = math.max(0, math.min(#line - 1, end_col - 1))
+        if final_byte < begin_byte then
+            notify.warn("casecon: invalid character selection")
+            return
+        end
+
+        local end_byte = vim.fn.byteidx(line, vim.fn.charidx(line, final_byte) + 1)
+        if end_byte < 0 then end_byte = #line end
+        local selected = line:sub(begin_byte + 1, end_byte)
+
+        local response = call_casecon({ selected }, style)
+        if not response or type(response.result) ~= "table"
+            or type(response.result[1]) ~= "string" or #response.result ~= 1 then
+            return
+        end
+
+        vim.api.nvim_buf_set_text(0, first - 1, begin_byte, first - 1, end_byte, {
+            response.result[1],
+        })
+        notify.info(("casecon: %s -> %s"):format(selected, response.result[1]))
         return
     end
 
-    -- Extract identifiers
-    local extracted_info = extract_identifiers_from_swift(selected_lines)
+    -- Linewise mode: only standalone identifiers and whitespace are admitted.
+    -- Reject source-code lines rather than destructively converting them.
+    local original = vim.api.nvim_buf_get_lines(0, first - 1, last, false)
+    local entries, names = {}, {}
+    for index, line in ipairs(original) do
+        local prefix, name, suffix = line:match("^([ \t]*)([%a_][%w_]*)([ \t]*)$")
+        if name then
+            entries[#entries + 1] = { index = index, prefix = prefix, suffix = suffix }
+            names[#names + 1] = name
+        elseif not line:match("^[ \t]*$") then
+            notify.warn(("casecon: line %d is not a standalone identifier; use :CaseconDecl for Swift declarations"):format(first + index - 1))
+            return
+        end
+    end
 
-    if #extracted_info == 0 then
-        notify.warn("casecon: no identifiers found in selection")
+    if #names == 0 then
+        notify.warn("casecon: no identifiers found in selected lines")
         return
     end
 
-    -- Collect just the names
-    local names = {}
-    for _, info in ipairs(extracted_info) do
-        table.insert(names, info.name)
-    end
-
-    -- Call casecon
     local response = call_casecon(names, style)
-    if not response or not response.result then
+    if not response or type(response.result) ~= "table" or #response.result ~= #names then
+        notify.error("casecon: incomplete conversion response")
         return
     end
 
-    -- Replace in selection
-    local modified_lines = replace_identifiers_in_selection(extracted_info, response.result)
-    if not modified_lines then
+    local updated = vim.deepcopy(original)
+    for index, entry in ipairs(entries) do
+        local converted = response.result[index]
+        if type(converted) ~= "string" then
+            notify.error("casecon: invalid conversion response")
+            return
+        end
+        updated[entry.index] = entry.prefix .. converted .. entry.suffix
+    end
+
+    vim.api.nvim_buf_set_lines(0, first - 1, last, false, updated)
+    notify.info(("casecon: converted %d identifier(s)"):format(#names))
+end
+
+-- Explicit Swift let/var declaration mode. Preserve all unrecognized lines.
+function M.convert_declarations(style, opts)
+    local first, last = opts.line1, opts.line2
+    local original = vim.api.nvim_buf_get_lines(0, first - 1, last, false)
+    local extracted = extract_identifiers_from_swift(original)
+
+    if #extracted == 0 then
+        notify.warn("casecon: no Swift let/var declarations found in range")
         return
     end
 
-    -- Write back to buffer
-    vim.api.nvim_buf_set_lines(0, start_line - 1, end_line, false, modified_lines)
+    local names = {}
+    for _, item in ipairs(extracted) do
+        names[#names + 1] = item.name
+    end
 
-    notify.info(("casecon: converted %d identifier(s) to %s"):format(#names, style or M.config.default_style))
+    local response = call_casecon(names, style)
+    if not response or type(response.result) ~= "table" then return end
+
+    local updated = replace_identifiers_in_selection(extracted, response.result, original)
+    if not updated then return end
+
+    vim.api.nvim_buf_set_lines(0, first - 1, last, false, updated)
+    notify.info(("casecon: converted %d Swift declaration(s)"):format(#names))
 end
 
 -- ============================================================================
 -- USER COMMAND
 -- ============================================================================
 
-vim.api.nvim_create_user_command(
-    "Casecon",
-    function(opts)
-        local style = opts.args ~= "" and opts.args or nil
-        M.convert_selection(style)
-    end,
-    {
-        nargs = "?",
-        range = true,
-        complete = function()
-            return { "snake", "camel", "pascal" }
-        end,
-        desc = "Convert identifiers in selection using casecon (snake|camel|pascal, default: snake)",
-    }
-)
+local function complete_style()
+    return { "snake", "camel", "pascal" }
+end
 
--- ============================================================================
--- OPTIONAL: Visual-mode keybinding (uncomment to enable)
--- ============================================================================
+vim.api.nvim_create_user_command("Casecon", function(opts)
+    M.convert_selection(vim.trim(opts.args) ~= "" and vim.trim(opts.args) or nil, opts)
+end, {
+    nargs = "?",
+    range = true,
+    complete = complete_style,
+    desc = "Convert exact visual text or standalone identifier lines using casecon",
+})
 
-vim.keymap.set("v", "<leader>ca", ":Casecon<Space>", {
+vim.api.nvim_create_user_command("CaseconDecl", function(opts)
+    M.convert_declarations(vim.trim(opts.args) ~= "" and vim.trim(opts.args) or nil, opts)
+end, {
+    nargs = "?",
+    range = true,
+    complete = complete_style,
+    desc = "Convert only Swift let/var declaration names within a line range",
+})
+
+vim.keymap.set("x", "<leader>ca", ":Casecon<Space>", {
     noremap = true,
     silent = false,
-    desc = "Convert selection with casecon (append snake|camel|pascal)",
+    desc = "Convert selected text with casecon (optional style)",
+})
+
+vim.keymap.set("x", "<leader>cd", ":CaseconDecl<Space>", {
+    noremap = true,
+    silent = false,
+    desc = "Convert Swift declaration names in selected lines",
 })
 
 -- Add this temporary debug function to M
@@ -309,6 +370,8 @@ vim.api.nvim_create_user_command(
     end,
     { range = true }
 )
+
+require("utils.casecon-substitute")(M.config, notify)
 
 return M
 
