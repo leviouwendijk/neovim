@@ -3,6 +3,8 @@ return {
         { "loader"      , "tests/loader.lua" },
         { "startup"     , "tests/startup.lua" },
         { "swift_lsp"   , "tests/swift_lsp.lua" },
+        { "semantics_lsp", "tests/semantics_lsp.lua" },
+        { "lsp_tooling" , "tests/lsp_tooling.lua" },
         { "lsp_diagnostic_copy", "tests/lsp_diagnostic_copy.lua" },
         { "lsp_symbol_library", "tests/lsp_symbol_library.lua" },
         { "format"       , "tests/format.lua" },

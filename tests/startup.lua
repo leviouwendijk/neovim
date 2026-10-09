@@ -36,6 +36,8 @@ local required_integrations = {
     "integrations.harpoon",
     "integrations.lsp",
     "integrations.lsp.ltex",
+    "integrations.formatters",
+    "integrations.linters",
     "integrations.luasnip",
     "integrations.treesitter",
     "integrations.treesitter.context",

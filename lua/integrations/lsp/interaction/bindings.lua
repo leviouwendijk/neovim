@@ -1,5 +1,4 @@
 return function(context, interaction)
-    local lsp_zero = context.lsp_zero
     local diag_jump = interaction.diagnostics.jump
     local copy_current_diagnostic =
         interaction.diagnostic_copy.copy_current
@@ -10,7 +9,13 @@ return function(context, interaction)
     local symbol_library_preview =
         interaction.symbol_library.preview
 
-    lsp_zero.on_attach(function(client, bufnr)
+    local group = vim.api.nvim_create_augroup(
+        "nvim_lsp_interaction", { clear = true }
+    )
+    vim.api.nvim_create_autocmd("LspAttach", {
+        group = group,
+        callback = function(event)
+            local bufnr = event.buf
         local opts = {buffer = bufnr, remap = false}
 
         vim.keymap.set("n", "gd", function() vim.lsp.buf.definition() end, opts)
@@ -63,5 +68,7 @@ return function(context, interaction)
             silent = true,
             desc = "Symbol → Library",
         })
-    end)
+        end,
+    })
 end
+

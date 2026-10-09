@@ -4,6 +4,7 @@ return {
             loader = true,
             startup = true,
             swift_lsp = true,
+            lsp_tooling = true,
             lsp_diagnostic_copy = true,
             lsp_symbol_library = true,
             format = true,

@@ -1,33 +1,8 @@
-local funcs = require("config.funcs")
+-- Text diagnostics are independent of lsp-zero and completion.
 local acc = require("accessor")
 
-local lsp_zero = funcs.require_or_nil("lsp-zero", {
-    message = "lsp-zero missing; skipping ltex setup",
-})
-
-if not lsp_zero then
-    return
-end
-
--- Configure ltex
--- lspconfig.ltex.setup({ -- deprecated
-vim.lsp.config('ltex_plus', {
-    on_attach = function(client, bufnr)
-        -- Call the default lsp-zero on_attach
-        lsp_zero.on_attach(client, bufnr)
-
-        -- Additional keymaps or options for ltex
-        local opts = { buffer = bufnr, remap = false }
-        vim.keymap.set("n", "<leader>vd", vim.diagnostic.open_float, opts)
-        vim.keymap.set("n", "[d", function()
-            vim.diagnostic.jump({ count = -1, float = true })
-        end, opts)
-
-        vim.keymap.set("n", "]d", function()
-            vim.diagnostic.jump({ count = 1, float = true })
-        end, opts)
-    end,
-    filetypes = { "markdown", "tex", "norg" }, -- Enable only for specific filetypes
+vim.lsp.config("ltex_plus", {
+    filetypes = { "markdown", "tex", "norg" },
     settings = {
         ltex = {
             language = acc.ltex.language,
@@ -36,5 +11,5 @@ vim.lsp.config('ltex_plus', {
         },
     },
 })
+vim.lsp.enable("ltex_plus")
 
-vim.lsp.enable('ltex_plus')

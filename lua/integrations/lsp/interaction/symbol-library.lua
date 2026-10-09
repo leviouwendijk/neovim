@@ -1,7 +1,6 @@
-local model =
-    require(
-        "integrations.lsp.interaction.symbol-library.model"
-    )
+local model = require(
+    "integrations.lsp.interaction.symbol-library.model"
+)
 
 return function(context)
     local funcs = context.funcs

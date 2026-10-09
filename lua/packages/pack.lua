@@ -62,11 +62,12 @@ vim.pack.add({
     spec("tpope/vim-fugitive"),
     spec("tpope/vim-commentary"),
 
-    spec("VonHeikemen/lsp-zero.nvim"),
     spec("williamboman/mason.nvim"),
     spec("williamboman/mason-lspconfig.nvim"),
     spec("WhoIsSethDaniel/mason-tool-installer.nvim"),
     spec("neovim/nvim-lspconfig"),
+    spec("stevearc/conform.nvim"),
+    spec("mfussenegger/nvim-lint"),
 
     spec("hrsh7th/nvim-cmp"),
     spec("hrsh7th/cmp-buffer"),

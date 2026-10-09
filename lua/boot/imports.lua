@@ -102,6 +102,8 @@ local SystemConfiguration = {
         { "d2"                , "integrations.d2" },
         { "lsp"               , "integrations.lsp" },
         { "mason_tools"       , "integrations.mason-tools" },
+        { "formatters"         , "integrations.formatters" },
+        { "linters"            , "integrations.linters" },
         { "neorg"             , "integrations.neorg" },
         { "luasnip"           , "integrations.luasnip" },
         { "treesitter"        , "integrations.treesitter" },

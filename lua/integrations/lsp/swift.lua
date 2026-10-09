@@ -1,74 +1,98 @@
+-- SourceKit formatting remains independent of external formatters.
 return function(context)
     local funcs = context.funcs
+    if vim.g.swift_auto_format_on_save == nil then
+        vim.g.swift_auto_format_on_save = false
+    end
 
-    vim.g.swift_auto_format_on_save = false
+    local function format_enabled(bufnr)
+        local local_value = vim.b[bufnr].swift_auto_format_on_save
+        if local_value ~= nil then return local_value == true end
+        return vim.g.swift_auto_format_on_save == true
+    end
 
-    -- Per-buffer toggle: :SwiftFormatOnSave [on|off|toggle]
-    vim.api.nvim_create_user_command('SwiftFormatOnSave', function(opts)
-        local arg = (opts.fargs[1] or 'toggle'):lower()
-        local cur = (vim.b.swift_auto_format_on_save ~= nil)
-        and vim.b.swift_auto_format_on_save
-        or vim.g.swift_auto_format_on_save
-        local val
-        if arg == 'on' or arg == 'enable' then val = true
-        elseif arg == 'off' or arg == 'disable' then val = false
-        elseif arg == 'toggle' then val = not cur
+    local function format_sourcekit(bufnr, range)
+        vim.lsp.buf.format({
+            bufnr = bufnr,
+            async = false,
+            range = range,
+            filter = function(client)
+                return client.name == "sourcekit"
+            end,
+        })
+    end
+
+    vim.api.nvim_create_user_command("SwiftFormatOnSave", function(opts)
+        local arg = (opts.fargs[1] or "toggle"):lower()
+        local current = format_enabled(vim.api.nvim_get_current_buf())
+        local value
+        if arg == "on" or arg == "enable" then value = true
+        elseif arg == "off" or arg == "disable" then value = false
+        elseif arg == "toggle" then value = not current
         else
-            print("Usage: :SwiftFormatOnSave [on|off|toggle]")
+            funcs.safe_notify(
+                "Usage: :SwiftFormatOnSave [on|off|toggle]",
+                vim.log.levels.WARN
+            )
             return
         end
-        vim.b.swift_auto_format_on_save = val
-        funcs.safe_notify("Swift format-on-save: " .. (val and "ON" or "OFF"))
-    end, { nargs = '?' })
+        vim.b.swift_auto_format_on_save = value
+        funcs.safe_notify("Swift format-on-save: " .. (value and "ON" or "OFF"))
+    end, { nargs = "?" })
 
-    -- Optional global toggle: :SwiftFormatOnSaveGlobal [on|off|toggle]
-    vim.api.nvim_create_user_command('SwiftFormatOnSaveGlobal', function(opts)
-        local arg = (opts.fargs[1] or 'toggle'):lower()
-        local val
-        if arg == 'on' or arg == 'enable' then val = true
-        elseif arg == 'off' or arg == 'disable' then val = false
-        elseif arg == 'toggle' then val = not vim.g.swift_auto_format_on_save
+    vim.api.nvim_create_user_command("SwiftFormatOnSaveGlobal", function(opts)
+        local arg = (opts.fargs[1] or "toggle"):lower()
+        local value
+        if arg == "on" or arg == "enable" then value = true
+        elseif arg == "off" or arg == "disable" then value = false
+        elseif arg == "toggle" then
+            value = not (vim.g.swift_auto_format_on_save == true)
         else
-            print("Usage: :SwiftFormatOnSaveGlobal [on|off|toggle]")
+            funcs.safe_notify(
+                "Usage: :SwiftFormatOnSaveGlobal [on|off|toggle]",
+                vim.log.levels.WARN
+            )
             return
         end
-        vim.g.swift_auto_format_on_save = val
-        funcs.safe_notify("Swift format-on-save (global default): " .. (val and "ON" or "OFF"))
-    end, { nargs = '?' })
+        vim.g.swift_auto_format_on_save = value
+        funcs.safe_notify(
+            "Swift format-on-save (global): " .. (value and "ON" or "OFF")
+        )
+    end, { nargs = "?" })
 
-    local function _swift_attach_formatting(_, bufnr)
-        -- Make LSP do range formatting for gq (motions/visual)
-        vim.bo[bufnr].formatexpr = 'v:lua.vim.lsp.formatexpr()'
+    local group = vim.api.nvim_create_augroup(
+        "nvim_swift_format_on_save", { clear = true }
+    )
 
-        -- Format on save (guarded by per-buffer OR global boolean)
-        vim.api.nvim_create_autocmd('BufWritePre', {
+    local function attach(_, bufnr)
+        vim.bo[bufnr].formatexpr = "v:lua.vim.lsp.formatexpr()"
+
+        -- Clear only this buffer's prior formatter callback on reattach.
+        vim.api.nvim_clear_autocmds({ group = group, buffer = bufnr })
+        vim.api.nvim_create_autocmd("BufWritePre", {
+            group = group,
             buffer = bufnr,
             callback = function()
-                local b = vim.b.swift_auto_format_on_save
-                local g = vim.g.swift_auto_format_on_save
-                if b == false or (b == nil and g == false) then return end
-                vim.lsp.buf.format({ async = false })
+                if format_enabled(bufnr) then
+                    format_sourcekit(bufnr)
+                end
             end,
         })
 
-        -- Normal: '==' formats WHOLE file (Swift buffer only)
-        vim.keymap.set('n', '==', function()
-            vim.lsp.buf.format({ async = false })
+        vim.keymap.set("n", "==", function()
+            format_sourcekit(bufnr)
         end, { buffer = bufnr, silent = true })
 
-        -- Visual: '=' formats ONLY THE SELECTION
-        vim.keymap.set('x', '=', function()
-            local s = vim.api.nvim_buf_get_mark(0, '<') -- {line, col}
-            local e = vim.api.nvim_buf_get_mark(0, '>') -- {line, col}
-            vim.lsp.buf.format({
-                async = false,
-                range = {
-                    ['start'] = { s[1] - 1, s[2] },
-                    ['end']   = { e[1] - 1, e[2] },
-                },
+        vim.keymap.set("x", "=", function()
+            local first = vim.api.nvim_buf_get_mark(bufnr, "<")
+            local last = vim.api.nvim_buf_get_mark(bufnr, ">")
+            format_sourcekit(bufnr, {
+                ["start"] = { first[1] - 1, first[2] },
+                ["end"] = { last[1] - 1, last[2] },
             })
         end, { buffer = bufnr, silent = true })
     end
 
-    return _swift_attach_formatting
+    return attach
 end
+
