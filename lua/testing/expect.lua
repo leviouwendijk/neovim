@@ -90,6 +90,10 @@ function Expect.nil_value(value, label)
     end
 end
 
+---@generic T
+---@param value T?
+---@param label? string
+---@return T
 function Expect.not_nil(value, label)
     if value == nil then
         fail({

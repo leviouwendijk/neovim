@@ -6,6 +6,7 @@ return {
         { "lsp_diagnostic_copy", "tests/lsp_diagnostic_copy.lua" },
         { "lsp_symbol_library", "tests/lsp_symbol_library.lua" },
         { "format"       , "tests/format.lua" },
+        { "casecon_substitute", "tests/casecon_substitute.lua" },
         { "output"       , "tests/output.lua" },
         { "nicetstamp"   , "tests/nicetstamp.lua" },
         { "confirm"     , "tests/confirm.lua" },

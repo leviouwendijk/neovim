@@ -7,6 +7,7 @@ return {
             lsp_diagnostic_copy = true,
             lsp_symbol_library = true,
             format = true,
+            casecon_substitute = true,
             output = true,
             nicetstamp = true,
             confirm = true,

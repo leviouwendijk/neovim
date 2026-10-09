@@ -1,55 +1,14 @@
 -- Case-preserving literal substitution backed by the casecon Swift CLI.
 return function(config, notify)
-    local function parse(spec)
-        local delimiter = spec:sub(1, 1)
-        if delimiter == "" or delimiter:match("[%w%s]") then
-            return nil, "expected /needle/replacement/[g]"
-        end
-
-        local function read_segment(position)
-            local result = {}
-            while position <= #spec do
-                local char = spec:sub(position, position)
-                if char == "\\" and position < #spec then
-                    local following = spec:sub(position + 1, position + 1)
-                    if following == delimiter or following == "\\" then
-                        result[#result + 1] = following
-                        position = position + 2
-                    else
-                        result[#result + 1] = char
-                        position = position + 1
-                    end
-                elseif char == delimiter then
-                    return table.concat(result), position + 1
-                else
-                    result[#result + 1] = char
-                    position = position + 1
-                end
-            end
-            return nil
-        end
-
-        local needle, next_position = read_segment(2)
-        if not needle or needle == "" then
-            return nil, "nonempty search text is required"
-        end
-        local replacement, flags_position = read_segment(next_position)
-        if replacement == nil then
-            return nil, "missing closing delimiter"
-        end
-        local flags = vim.trim(spec:sub(flags_position))
-        if flags ~= "" and flags ~= "g" then
-            return nil, "only the g flag is supported"
-        end
-        return { needle = needle, replacement = replacement, global = flags == "g" }
-    end
+    local parse = require("utils.casecon-substitute-parse").parse
+    local preview = require("utils.casecon-substitute-preview")(config)
 
     local function substitute(opts)
         if vim.fn.executable(config.bin) ~= 1 then
             notify.error("casecon executable not found: " .. config.bin)
             return
         end
-        local spec, err = parse(vim.trim(opts.args))
+        local spec, err = parse(opts.args)
         if not spec then
             notify.error("casecon: " .. err)
             return
@@ -121,6 +80,7 @@ return function(config, notify)
         nargs = 1,
         range = true,
         desc = "Literal case-preserving substitution via casecon",
+        preview = preview,
     })
 
     vim.keymap.set("n", "<leader>cs", ":%S/", {

@@ -33,6 +33,7 @@ vim.opt.undofile = true
 vim.opt.undodir = acc.paths.undodir
 vim.opt.hlsearch = false
 vim.opt.incsearch = true
+vim.opt.inccommand = "split" -- enable :S incremental previews
 vim.opt.termguicolors = true
 vim.opt.cursorline = true
 vim.opt.mouse = "a"
