@@ -132,14 +132,14 @@ function Filemover.move_selected_files(options)
         sorter = sorters.get_generic_fuzzy_sorter(),
         attach_mappings = function(prompt_bufnr, _)
             actions.select_default:replace(function()
-                local selection = actions_state.get_selected_entry()
+                local target_entry = actions_state.get_selected_entry()
                 actions.close(prompt_bufnr)
 
-                if not selection or not selection.value then
+                if not target_entry or not target_entry.value then
                     return
                 end
 
-                local target_dir = core.normalize_path(selection.value)
+                local target_dir = core.normalize_path(target_entry.value)
                 local moved = 0
                 local skipped = 0
                 local failed = 0
