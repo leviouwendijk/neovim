@@ -7,6 +7,8 @@
 local acc = require("accessor")
 local funcs = require("config.funcs")
 local path = require("config.path")
+local netrw_selection = require("core.netrw-selection")
+local filemover_core = require("extensions.filemover.core")
 
 local M = {}
 
@@ -147,31 +149,36 @@ local function trashPicker(
     local cancel_line =
         "  " .. cancel_label
 
-    local available_width =
-        math.max(
-            1,
-            vim.o.columns - 4
+    local picker_lines = {
+        "", prompt_title, "", action_line, cancel_line, "", hint,
+    }
+    if options.preview_paths and #options.preview_paths > 0 then
+        picker_lines[#picker_lines + 1] = ""
+        picker_lines[#picker_lines + 1] =
+            ("Selected entries (%d):"):format(#options.preview_paths)
+        for _, item in ipairs(options.preview_paths) do
+            picker_lines[#picker_lines + 1] =
+                "  " .. vim.fn.fnamemodify(item, ":~:.")
+        end
+    end
+
+    -- Size against the actual rendered content, including batch paths.
+    -- Never rely on implicit wrapping: height is measured in buffer lines.
+    local longest_line = vim.fn.strdisplaywidth(title)
+    for _, line in ipairs(picker_lines) do
+        longest_line = math.max(
+            longest_line,
+            vim.fn.strdisplaywidth(line)
         )
-    local width =
-        math.min(
-            available_width,
-            math.max(
-                42,
-                math.min(
-                    72,
-                    math.max(
-                        vim.fn.strdisplaywidth(prompt_title),
-                        vim.fn.strdisplaywidth(hint),
-                        vim.fn.strdisplaywidth(action_line),
-                        vim.fn.strdisplaywidth(cancel_line),
-                        vim.fn.strdisplaywidth(title)
-                    ) + 4
-                )
-            )
-        )
+    end
+    local available_width = math.max(1, vim.o.columns - 4)
+    local width = math.min(
+        available_width,
+        math.max(42, math.min(96, longest_line + 2))
+    )
     local height =
         math.min(
-            7,
+            #picker_lines,
             math.max(
                 1,
                 vim.o.lines - 4
@@ -261,15 +268,7 @@ local function trashPicker(
         0,
         -1,
         false,
-        {
-            "",
-            prompt_title,
-            "",
-            action_line,
-            cancel_line,
-            "",
-            hint,
-        }
+        picker_lines
     )
 
     vim.bo[win_buf].buftype = "nofile"
@@ -282,7 +281,8 @@ local function trashPicker(
     vim.wo[win_id].relativenumber = false
     vim.wo[win_id].signcolumn = "no"
     vim.wo[win_id].cursorline = true
-    vim.wo[win_id].wrap = true
+    -- Long paths pan horizontally (zh/zl) instead of consuming extra rows.
+    vim.wo[win_id].wrap = false
     vim.wo[win_id].winhl =
         "Normal:NormalFloat,"
         .. "FloatBorder:"
@@ -345,14 +345,16 @@ local function trashPicker(
             vim.api.nvim_win_get_cursor(
                 win_id
             )
-        local line =
-            math.max(
-                YES_LINE,
-                math.min(
-                    NO_LINE,
-                    cursor[1] + delta
-                )
-            )
+        local current = cursor[1]
+        local last = #picker_lines > 7 and #picker_lines or NO_LINE
+        local line
+        if current == NO_LINE and delta > 0 and last > NO_LINE then
+            line = 9 -- skip spacer and hint
+        elseif current == 9 and delta < 0 then
+            line = NO_LINE
+        else
+            line = math.max(YES_LINE, math.min(last, current + delta))
+        end
 
         vim.api.nvim_win_set_cursor(
             win_id,
@@ -421,225 +423,162 @@ local function trashPicker(
     map("<C-c>", cancel)
 end
 
--- util: optionally auto-press <CR> to kill any pending "Press ENTER"
-local function press_enter()
-  local cr = vim.api.nvim_replace_termcodes("<CR>", true, false, true)
-  vim.api.nvim_feedkeys(cr, "n", false)
+local function safe_notify(message, level)
+    funcs.safe_notify(message, level or vim.log.levels.INFO)
 end
 
-local function safe_notify(msg, level)
-  -- avoids hit-enter; levels: :help vim.log.levels
-  vim.notify(msg, level or vim.log.levels.INFO)
-end
+-- Cursor, marked and visual selections all flow through the same picker.
+-- Preserve the existing direct invocation used by non-netrw callers.
+function NetrwTrash(absolute_path, options)
+    options = options or {}
+    local source_window = vim.api.nvim_get_current_win()
+    local source_cursor = vim.api.nvim_win_get_cursor(source_window)
+    local current_line = source_cursor[1]
+    local is_netrw = vim.bo.filetype == "netrw"
+    local paths, selection_kind, selection_error
 
-function NetrwTrash(absolute_path)
-    -- Save the current cursor position
-    local current_cursor = vim.fn.getcurpos()
-    local current_line = current_cursor[2]
+    if is_netrw then
+        paths, selection_kind, selection_error =
+            netrw_selection.resolve(options)
+    else
+        paths = { vim.fn.fnamemodify(
+            vim.fn.expand("%:p") .. vim.fn.getline("."), ":p"
+        ) }
+        selection_kind = "cursor"
+    end
 
-    -- Get the absolute filepath of the file under the cursor
-    local filepath =
-        vim.fn.fnamemodify(
-            vim.fn.expand("%:p")
-                .. vim.fn.getline("."),
-            ":p"
-        )
-
-    if not filepath or filepath == "" then
-        print("No file selected!")
+    if not paths then
+        safe_notify("Failed to resolve netrw selection: "
+            .. tostring(selection_error), vim.log.levels.ERROR)
         return
     end
-
-    -- Determine the appearance of the path in the picker
-    local display_path =
-        absolute_path
-        and filepath
-        or vim.fn.fnamemodify(
-            vim.fn.expand("%:p")
-                .. vim.fn.getline("."),
-            ":p"
-        )
+    local entries = filemover_core.compact_sources(paths)
+    if #entries == 0 then
+        safe_notify("No files selected", vim.log.levels.WARN)
+        return
+    end
+    paths = vim.tbl_map(function(item) return item.path end, entries)
+    local ctx = is_netrw and netrw_selection.capture(paths) or nil
 
     local function restore_cursor()
-        local success =
-            pcall(
-                function()
-                    vim.fn.cursor(
-                        current_line,
-                        0
-                    )
-                end
-            )
-
-        if not success then
-            vim.fn.cursor(
-                vim.fn.line("$"),
-                0
-            )
+        if vim.api.nvim_win_is_valid(source_window) then
+            vim.api.nvim_set_current_win(source_window)
+            pcall(vim.api.nvim_win_set_cursor, source_window, source_cursor)
+        end
+    end
+    local function refresh()
+        if ctx then
+            netrw_selection.refresh(ctx)
+        else
+            pcall(function() vim.cmd("edit") end)
+            restore_cursor()
+        end
+    end
+    local function clear_completed_marks()
+        if selection_kind == "marks" and is_netrw then
+            netrw_selection.clear_marks()
         end
     end
 
-    local function cancel_operation(message)
-        restore_cursor()
-        safe_notify(
-            message,
-            vim.log.levels.WARN
-        )
+    local in_trash = M.is_in_trash(paths[1])
+    for index = 2, #paths do
+        if M.is_in_trash(paths[index]) ~= in_trash then
+            safe_notify(
+                "Cannot mix Trash contents and ordinary files in one operation",
+                vim.log.levels.ERROR
+            )
+            return
+        end
     end
 
-    local function refresh_after_mutation(message)
-        pcall(
-            function()
-                vim.cmd("edit")
-            end
-        )
-        restore_cursor()
-        safe_notify(message)
-    end
+    local display = #paths == 1 and (absolute_path and paths[1]
+        or vim.fn.fnamemodify(paths[1], ":~:."))
+        or ("%d selected entries"):format(#paths)
+    local preview = #paths > 1 and paths or nil
 
-    if M.is_in_trash(filepath) then
+    if in_trash then
         local function perform_permanent_delete(action)
             if action ~= "Yes" then
-                cancel_operation(
-                    "Cancelled permanent deletion."
-                )
+                restore_cursor()
                 return
             end
-
-            local deleted, delete_error =
-                M.permanent_delete(filepath)
-
-            if not deleted then
-                safe_notify(
-                    "Permanent deletion failed: "
-                        .. tostring(delete_error),
-                    vim.log.levels.ERROR
-                )
-                return
+            local deleted, failed = 0, {}
+            for _, item in ipairs(paths) do
+                local success, err = M.permanent_delete(item)
+                if success then
+                    deleted = deleted + 1
+                else
+                    failed[#failed + 1] = item .. ": " .. tostring(err)
+                end
             end
-
-            refresh_after_mutation(
-                filepath
-                    .. " permanently deleted."
-            )
+            if deleted > 0 then
+                clear_completed_marks()
+                refresh()
+            end
+            if #failed > 0 then
+                safe_notify(("Permanently deleted %d/%d; failed:\n%s")
+                    :format(deleted, #paths, table.concat(failed, "\n")),
+                    vim.log.levels.ERROR)
+            else
+                safe_notify(("%d entries permanently deleted."):format(deleted))
+            end
         end
-
         local function request_final_confirmation(action)
             if action ~= "Yes" then
-                cancel_operation(
-                    "Cancelled permanent deletion."
-                )
+                restore_cursor()
                 return
             end
-
             trashPicker(
-                "This cannot be undone. Permanently delete "
-                    .. display_path
-                    .. "?",
-                perform_permanent_delete,
-                current_line,
-                {
+                "This cannot be undone. Permanently delete " .. display .. "?",
+                perform_permanent_delete, current_line, {
                     title = "Final confirmation",
-                    action_label =
-                        "Delete permanently",
-                    kind = "danger",
+                    action_label = "Delete permanently",
+                    kind = "danger", preview_paths = preview,
                 }
             )
         end
-
-        trashPicker(
-            "Permanently delete "
-                .. display_path
-                .. "?",
-            request_final_confirmation,
-            current_line,
-            {
+        trashPicker("Permanently delete " .. display .. "?",
+            request_final_confirmation, current_line, {
                 title = "Permanent delete",
-                action_label =
-                    "Permanently delete",
-                kind = "danger",
-            }
-        )
-
+                action_label = "Permanently delete",
+                kind = "danger", preview_paths = preview,
+            })
         return
     end
 
-    -- local trash_cmd = "trash " .. vim.fn.shellescape(filepath)
-    local trash_cmd =
-        {
-            acc.bin.trash,
-            filepath,
-        }
-
-    -- Moving to Trash depends on the external helper. Permanent deletion
-    -- above does not.
-    local ok_trash =
-        funcs.has_executable(
-            acc.bin.trash
-        )
-
-    if not ok_trash then
-        safe_notify(
-            "Trash helper is unavailable",
-            vim.log.levels.WARN
-        )
+    if not funcs.has_executable(acc.bin.trash) then
+        safe_notify("Trash helper is unavailable", vim.log.levels.ERROR)
         return
     end
 
-    local function perform_trash(action)
-        if action == "Yes" then
-            -- vim.fn.jobstart(trash_cmd, {
-            --     detach = true,
-            --     on_exit = function()
-            --         vim.cmd("edit") -- Refresh the buffer
-            --         local success = pcall(function()
-            --             vim.fn.cursor(current_line, 0) -- Attempt to move back to the original line
-            --         end)
-            --         if not success then
-            --             vim.fn.cursor(vim.fn.line('$'), 0) -- Fallback to the last line if it fails
-            --         end
-            --         -- print(filepath .. " moved to Trash.")
-            --         safe_notify(filepath .. " moved to Trash.")
-            --         press_enter()
-            --     end,
-            -- })
-            local job =
-                funcs.jobstart(
-                    trash_cmd,
-                    {
-                        detach = true,
-                        on_exit = function()
-                            refresh_after_mutation(
-                                filepath
-                                    .. " moved to Trash."
-                            )
-                            press_enter()
-                        end,
-                    }
-                )
-
-            if job <= 0 then
-                safe_notify(
-                    "Failed to launch trash helper",
-                    vim.log.levels.ERROR
-                )
-            end
-        else
-            cancel_operation(
-                "Cancelled trash operation."
-            )
-            press_enter()
+    trashPicker("Trash " .. display .. "?", function(action)
+        if action ~= "Yes" then
+            restore_cursor()
+            return
         end
-    end
-
-    -- Open the picker
-    trashPicker(
-        "Trash "
-            .. display_path
-            .. "?",
-        perform_trash,
-        current_line
-    )
+        local cmd = { acc.bin.trash }
+        vim.list_extend(cmd, paths)
+        local ok, err = pcall(vim.system, cmd, { text = true }, function(result)
+            vim.schedule(function()
+                if result.code == 0 then
+                    clear_completed_marks()
+                    refresh()
+                    safe_notify(("%d entries moved to Trash."):format(#paths))
+                else
+                    -- A failed batch may have moved some entries already.
+                    refresh()
+                    safe_notify("Trash failed (exit " .. tostring(result.code)
+                        .. "): " .. (result.stderr or ""), vim.log.levels.ERROR)
+                end
+            end)
+        end)
+        if not ok then
+            safe_notify("Unable to launch trash helper: " .. tostring(err),
+                vim.log.levels.ERROR)
+        end
+    end, current_line, {
+        title = "Trash", preview_paths = preview,
+    })
 end
 
 -- function for seeing if we can somehow detect files in other directories than where we entered as cwd
@@ -668,7 +607,16 @@ end
 vim.api.nvim_create_autocmd('FileType', {
     pattern = 'netrw',
     callback = function()
-        vim.api.nvim_buf_set_keymap(0, 'n', 'D', ':lua NetrwTrash()<CR>', { noremap = true, silent = true })
+        vim.keymap.set("n", "D", function() NetrwTrash() end, {
+            buffer = true, silent = true, desc = "Trash current or marked entries",
+        })
+        vim.keymap.set("x", "D", function()
+            NetrwTrash(false, {
+                visual_rows = { vim.fn.getpos("v")[2], vim.fn.line(".") },
+            })
+        end, {
+            buffer = true, silent = true, desc = "Trash visually selected entries",
+        })
     end,
 })
 

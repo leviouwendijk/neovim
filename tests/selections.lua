@@ -19,6 +19,7 @@ return {
             file_rename = true,
             filemover = true,
             trash = true,
+            netrw_batch = true,
         },
     },
 }

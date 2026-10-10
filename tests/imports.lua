@@ -19,5 +19,6 @@ return {
         { "file_rename" , "tests/file_rename.lua" },
         { "filemover"   , "tests/filemover.lua" },
         { "trash"       , "tests/trash.lua" },
+        { "netrw_batch" , "tests/netrw_batch.lua" },
     },
 }

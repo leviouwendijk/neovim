@@ -4,7 +4,7 @@ Filemover.display_full_path = Filemover.display_full_path or false
 
 local Path = require("plenary.path")
 local core = require("extensions.filemover.core")
-local netrw = require("extensions.filemover.netrw")
+local selection = require("core.netrw-selection")
 local notify = require("utils.notify")
 local uv = vim.uv or vim.loop
 
@@ -83,36 +83,31 @@ local function reconcile_buffers(result)
     end
 end
 
-function Filemover.move_selected_files()
+function Filemover.move_selected_files(options)
+    options = options or {}
     if vim.bo.filetype ~= "netrw" then
         notify.info("Error: Operation only allowed in Netrw buffers")
         return
     end
 
-    local ctx = {
-        win = vim.api.nvim_get_current_win(),
-        dir = netrw.active_directory(),
-        cursor = vim.api.nvim_win_get_cursor(0),
-    }
-
+    local selected_paths, selection_kind, selection_error =
+        selection.resolve(options)
+    if not selected_paths then
+        notify.error("Failed to resolve netrw selection: "
+            .. tostring(selection_error))
+        return
+    end
+    if #selected_paths == 0 then
+        notify.info("No netrw entries selected")
+        return
+    end
+    local sources = core.compact_sources(selected_paths)
+    local ctx = selection.capture(vim.tbl_map(function(item)
+        return item.path
+    end, sources))
     local cwd = core.normalize_path(uv.cwd())
-    local marked_paths, mark_error = netrw.marked_paths()
-
-    if not marked_paths then
-        notify.error("Failed to read Netrw marks: " .. mark_error)
-        return
-    end
-
-    if #marked_paths == 0 then
-        notify.info("No files are marked in Netrw")
-        return
-    end
-
-    local sources = core.compact_sources(marked_paths)
-    notify.debug_when(
-        verbose,
-        "Marked entries: " .. vim.inspect(sources)
-    )
+    notify.debug_when(verbose,
+        "Selected entries (" .. selection_kind .. "): " .. vim.inspect(sources))
 
     local directories = core.target_directories(cwd, sources)
     if #directories == 0 then
@@ -179,8 +174,12 @@ function Filemover.move_selected_files()
                     end
                 end
 
-                netrw.clear_marks()
-                netrw.refresh(ctx)
+                if selection_kind == "marks" and moved > 0 then
+                    selection.clear_marks()
+                end
+                if moved > 0 then
+                    selection.refresh(ctx)
+                end
 
                 notify.debug_when(
                     verbose,
@@ -217,5 +216,20 @@ vim.api.nvim_create_user_command(
     Filemover.move_selected_files,
     {}
 )
+
+vim.api.nvim_create_autocmd("FileType", {
+    pattern = "netrw",
+    callback = function(args)
+        vim.keymap.set("x", "<leader>fm", function()
+            Filemover.move_selected_files({
+                visual_rows = { vim.fn.getpos("v")[2], vim.fn.line(".") },
+            })
+        end, {
+            buffer = args.buf,
+            silent = true,
+            desc = "Move visually selected netrw entries",
+        })
+    end,
+})
 
 return Filemover
