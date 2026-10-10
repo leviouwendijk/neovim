@@ -20,6 +20,7 @@ return {
             filemover = true,
             trash = true,
             netrw_batch = true,
+            trash_ui = true,
         },
     },
 }

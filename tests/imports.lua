@@ -20,5 +20,6 @@ return {
         { "filemover"   , "tests/filemover.lua" },
         { "trash"       , "tests/trash.lua" },
         { "netrw_batch" , "tests/netrw_batch.lua" },
+        { "trash_ui"    , "tests/trash_ui.lua" },
     },
 }

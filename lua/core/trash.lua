@@ -116,312 +116,7 @@ function M.permanent_delete(filepath)
     return true
 end
 
-local YES_LINE = 4
-local NO_LINE = 5
-local PICKER_NS = vim.api.nvim_create_namespace("core.trash")
-
-local function trashPicker(
-    prompt_title,
-    callback,
-    current_line,
-    options
-)
-    options = options or {}
-
-    local hint =
-        "j/k move  ·  Enter select  ·  Esc cancel"
-    local action_label =
-        options.action_label
-        or "Move to Trash"
-    local cancel_label =
-        options.cancel_label
-        or "Cancel"
-    local title =
-        options.title
-        or "Trash"
-    local border_highlight =
-        options.kind == "danger"
-        and "DiagnosticError"
-        or "DiagnosticWarn"
-
-    local action_line =
-        "  " .. action_label
-    local cancel_line =
-        "  " .. cancel_label
-
-    local picker_lines = {
-        "", prompt_title, "", action_line, cancel_line, "", hint,
-    }
-    if options.preview_paths and #options.preview_paths > 0 then
-        picker_lines[#picker_lines + 1] = ""
-        picker_lines[#picker_lines + 1] =
-            ("Selected entries (%d):"):format(#options.preview_paths)
-        for _, item in ipairs(options.preview_paths) do
-            picker_lines[#picker_lines + 1] =
-                "  " .. vim.fn.fnamemodify(item, ":~:.")
-        end
-    end
-
-    -- Size against the actual rendered content, including batch paths.
-    -- Never rely on implicit wrapping: height is measured in buffer lines.
-    local longest_line = vim.fn.strdisplaywidth(title)
-    for _, line in ipairs(picker_lines) do
-        longest_line = math.max(
-            longest_line,
-            vim.fn.strdisplaywidth(line)
-        )
-    end
-    local available_width = math.max(1, vim.o.columns - 4)
-    local width = math.min(
-        available_width,
-        math.max(42, math.min(96, longest_line + 2))
-    )
-    local height =
-        math.min(
-            #picker_lines,
-            math.max(
-                1,
-                vim.o.lines - 4
-            )
-        )
-
-    -- Create the popup.
-    local win_buf =
-        vim.api.nvim_create_buf(
-            false,
-            true
-        )
-
-    if not win_buf then
-        print("Error creating buffer for popup")
-        return
-    end
-
-    vim.b[win_buf].indentation_overlay_disabled = true
-
-    local opened, win_id =
-        pcall(
-            vim.api.nvim_open_win,
-            win_buf,
-            true,
-            {
-                relative = "editor",
-                width = width,
-                height = height,
-                col =
-                    math.max(
-                        0,
-                        math.floor(
-                            (vim.o.columns - width)
-                            / 2
-                        )
-                    ),
-                row =
-                    math.max(
-                        0,
-                        math.floor(
-                            (vim.o.lines - height)
-                            / 2
-                        ) - 1
-                    ),
-                border = "rounded",
-                title =
-                    " "
-                    .. title
-                    .. " ",
-                title_pos = "center",
-                style = "minimal",
-                zindex = 250,
-            }
-        )
-
-    if not opened then
-        pcall(
-            vim.api.nvim_buf_delete,
-            win_buf,
-            {
-                force = true,
-            }
-        )
-        funcs.safe_notify(
-            "Unable to open trash confirmation",
-            vim.log.levels.ERROR
-        )
-        return
-    end
-
-    -- This picker is a fixed selection surface. Keep nvim-cmp available
-    -- globally, but suppress its ghost text specifically in this buffer.
-    local ok_cmp, cmp = pcall(require, "cmp")
-    if ok_cmp and cmp.setup and cmp.setup.buffer then
-        cmp.setup.buffer({
-            experimental = {
-                ghost_text = false,
-            },
-        })
-    end
-
-    -- Selection is deliberately movement + Enter only. The destructive
-    -- choice is not the default and has no single-key shortcut.
-    vim.api.nvim_buf_set_lines(
-        win_buf,
-        0,
-        -1,
-        false,
-        picker_lines
-    )
-
-    vim.bo[win_buf].buftype = "nofile"
-    vim.bo[win_buf].modifiable = false
-    vim.bo[win_buf].bufhidden = "wipe"
-    vim.bo[win_buf].swapfile = false
-    vim.bo[win_buf].filetype = "trash-confirm"
-
-    vim.wo[win_id].number = false
-    vim.wo[win_id].relativenumber = false
-    vim.wo[win_id].signcolumn = "no"
-    vim.wo[win_id].cursorline = true
-    -- Long paths pan horizontally (zh/zl) instead of consuming extra rows.
-    vim.wo[win_id].wrap = false
-    vim.wo[win_id].winhl =
-        "Normal:NormalFloat,"
-        .. "FloatBorder:"
-        .. border_highlight
-        .. ",CursorLine:Visual"
-
-    vim.api.nvim_buf_set_extmark(
-        win_buf,
-        PICKER_NS,
-        1,
-        0,
-        {
-            end_row = 1,
-            end_col = #prompt_title,
-            hl_group = "Title",
-        }
-    )
-
-    vim.api.nvim_buf_set_extmark(
-        win_buf,
-        PICKER_NS,
-        6,
-        0,
-        {
-            end_row = 6,
-            end_col = #hint,
-            hl_group = "Comment",
-        }
-    )
-
-    -- Start on Cancel so confirming always requires an intentional move
-    -- followed by Enter.
-    vim.api.nvim_win_set_cursor(
-        win_id,
-        {
-            NO_LINE,
-            0,
-        }
-    )
-
-    local function close_picker(restore_cursor)
-        if vim.api.nvim_win_is_valid(win_id) then
-            vim.api.nvim_win_close(
-                win_id,
-                true
-            )
-        end
-
-        if restore_cursor then
-            restore_cursor()
-        end
-    end
-
-    local function move_choice(delta)
-        if not vim.api.nvim_win_is_valid(win_id) then
-            return
-        end
-
-        local cursor =
-            vim.api.nvim_win_get_cursor(
-                win_id
-            )
-        local current = cursor[1]
-        local last = #picker_lines > 7 and #picker_lines or NO_LINE
-        local line
-        if current == NO_LINE and delta > 0 and last > NO_LINE then
-            line = 9 -- skip spacer and hint
-        elseif current == 9 and delta < 0 then
-            line = NO_LINE
-        else
-            line = math.max(YES_LINE, math.min(last, current + delta))
-        end
-
-        vim.api.nvim_win_set_cursor(
-            win_id,
-            {
-                line,
-                0,
-            }
-        )
-    end
-
-    local function map(lhs, callback_fn)
-        vim.keymap.set(
-            "n",
-            lhs,
-            callback_fn,
-            {
-                buffer = win_buf,
-                noremap = true,
-                silent = true,
-                nowait = true,
-            }
-        )
-    end
-
-    map("k", function()
-        move_choice(-1)
-    end)
-
-    map("<Up>", function()
-        move_choice(-1)
-    end)
-
-    map("j", function()
-        move_choice(1)
-    end)
-
-    map("<Down>", function()
-        move_choice(1)
-    end)
-
-    map("<CR>", function()
-        local cursor =
-            vim.api.nvim_win_get_cursor(
-                win_id
-            )
-        local choice =
-            cursor[1] == YES_LINE
-            and "Yes"
-            or "No"
-
-        close_picker()
-        callback(choice)
-    end)
-
-    local function cancel()
-        close_picker(function()
-            vim.fn.cursor(
-                current_line,
-                0
-            )
-        end)
-    end
-
-    map("q", cancel)
-    map("<Esc>", cancel)
-    map("<C-c>", cancel)
-end
+local trash_picker = require("interface.trash")
 
 local function safe_notify(message, level)
     funcs.safe_notify(message, level or vim.log.levels.INFO)
@@ -494,7 +189,7 @@ function NetrwTrash(absolute_path, options)
     local display = #paths == 1 and (absolute_path and paths[1]
         or vim.fn.fnamemodify(paths[1], ":~:."))
         or ("%d selected entries"):format(#paths)
-    local preview = #paths > 1 and paths or nil
+    local preview = paths
 
     if in_trash then
         local function perform_permanent_delete(action)
@@ -528,7 +223,7 @@ function NetrwTrash(absolute_path, options)
                 restore_cursor()
                 return
             end
-            trashPicker(
+            trash_picker.open(
                 "This cannot be undone. Permanently delete " .. display .. "?",
                 perform_permanent_delete, current_line, {
                     title = "Final confirmation",
@@ -537,7 +232,7 @@ function NetrwTrash(absolute_path, options)
                 }
             )
         end
-        trashPicker("Permanently delete " .. display .. "?",
+        trash_picker.open("Permanently delete " .. display .. "?",
             request_final_confirmation, current_line, {
                 title = "Permanent delete",
                 action_label = "Permanently delete",
@@ -551,7 +246,7 @@ function NetrwTrash(absolute_path, options)
         return
     end
 
-    trashPicker("Trash " .. display .. "?", function(action)
+    trash_picker.open("Trash " .. display .. "?", function(action)
         if action ~= "Yes" then
             restore_cursor()
             return

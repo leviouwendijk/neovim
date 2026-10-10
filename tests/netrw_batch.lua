@@ -169,15 +169,14 @@ return testing.suite("netrw_batch", {
             rawset(funcs, "has_executable", function() return true end)
             package.loaded["core.trash"] = nil
             require("core.trash")
-            with_netrw(function(root)
-                local long_path = vim.fs.joinpath(root, long_name)
+            with_netrw(function()
                 mark("a.txt")
                 mark(long_name)
                 _G.NetrwTrash()
 
                 local picker = vim.api.nvim_get_current_buf()
                 local lines = vim.api.nvim_buf_get_lines(picker, 0, -1, false)
-                local preview_line = "  " .. vim.fn.fnamemodify(long_path, ":~:.")
+                local preview_line = "  [F] " .. long_name
                 local expected_width = math.min(
                     math.max(1, vim.o.columns - 4),
                     96,
