@@ -2,40 +2,44 @@ Filemover = Filemover or {}
 
 Filemover.display_full_path = Filemover.display_full_path or false
 
-local Path = require("plenary.path")
 local core = require("extensions.filemover.core")
 local selection = require("core.netrw-selection")
 local notify = require("utils.notify")
+local deferred = require("utils.deferred")
 local uv = vim.uv or vim.loop
 
 local verbose = false
 
-if not pcall(require, "telescope") then
-    notify.warning("Telescope is not installed or loaded")
-    return Filemover
-end
+-- Register Filemover's mappings immediately, but only load picker internals
+-- after selection/destination validation and on the first actual picker use.
+local load_picker = deferred.once(function()
+    if not pcall(require, "telescope") then
+        notify.warning("Telescope is not installed or loaded")
+        return nil
+    end
 
-local ok_pickers, pickers = pcall(require, "telescope.pickers")
-local ok_finders, finders = pcall(require, "telescope.finders")
-local ok_actions, actions = pcall(require, "telescope.actions")
-local ok_actions_state, actions_state = pcall(
-    require,
-    "telescope.actions.state"
-)
-local ok_sorters, sorters = pcall(require, "telescope.sorters")
+    local modules = {}
+    for _, dependency in ipairs({
+        { "Path", "plenary.path" },
+        { "pickers", "telescope.pickers" },
+        { "finders", "telescope.finders" },
+        { "actions", "telescope.actions" },
+        { "actions_state", "telescope.actions.state" },
+        { "sorters", "telescope.sorters" },
+    }) do
+        local key, name = dependency[1], dependency[2]
+        local ok, module = pcall(require, name)
+        if not ok then
+            notify.warning("Filemover component unavailable: " .. name)
+            return nil
+        end
+        modules[key] = module
+    end
 
-if not (
-    ok_pickers
-    and ok_finders
-    and ok_actions
-    and ok_actions_state
-    and ok_sorters
-) then
-    notify.warning("Telescope or one of its components is not available")
-    return Filemover
-end
+    return modules
+end)
 
-local function format_path(path, cwd)
+local function format_path(path, cwd, Path)
     if Filemover.display_full_path then
         return path
     end
@@ -115,25 +119,30 @@ function Filemover.move_selected_files(options)
         return
     end
 
-    pickers.new({}, {
+    local picker = load_picker()
+    if not picker then
+        return
+    end
+
+    picker.pickers.new({}, {
         prompt_title = "Select Target Directory",
-        finder = finders.new_table({
+        finder = picker.finders.new_table({
             results = directories,
             entry_maker = function(entry)
                 return {
                     value = entry,
                     display = entry == cwd
                         and "(root)/"
-                        or format_path(entry, cwd),
+                        or format_path(entry, cwd, picker.Path),
                     ordinal = entry,
                 }
             end,
         }),
-        sorter = sorters.get_generic_fuzzy_sorter(),
+        sorter = picker.sorters.get_generic_fuzzy_sorter(),
         attach_mappings = function(prompt_bufnr, _)
-            actions.select_default:replace(function()
-                local target_entry = actions_state.get_selected_entry()
-                actions.close(prompt_bufnr)
+            picker.actions.select_default:replace(function()
+                local target_entry = picker.actions_state.get_selected_entry()
+                picker.actions.close(prompt_bufnr)
 
                 if not target_entry or not target_entry.value then
                     return

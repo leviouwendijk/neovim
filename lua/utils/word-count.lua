@@ -43,13 +43,23 @@
 -- Return necessary data only
 -- Let customization.statusline.lua create the statusline in one place
 local M = {}
+local cache = {}
 
--- Returns integer count (number), excluding Neorg @document.meta … @end blocks
-function M.count_current_buf()
-    local bufnr = 0
+-- Cache by buffer identity and changedtick; ordinary cursor moves and
+-- statusline redraws cannot change the word count.
+function M.count_current_buf(bufnr)
+    if bufnr == nil or bufnr == 0 then
+        bufnr = vim.api.nvim_get_current_buf()
+    end
+    local tick = vim.api.nvim_buf_get_changedtick(bufnr)
+    local cached = cache[bufnr]
+    if cached and cached.tick == tick then
+        return cached.count
+    end
+
     local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
     local in_metadata = false
-    local word_count = 0
+    local count = 0
 
     for _, line in ipairs(lines) do
         if line:match("^@document%.meta") then
@@ -58,13 +68,20 @@ function M.count_current_buf()
             in_metadata = false
         elseif not in_metadata then
             for _ in line:gmatch("%S+") do
-                word_count = word_count + 1
+                count = count + 1
             end
         end
     end
 
-    return word_count
+    cache[bufnr] = { tick = tick, count = count }
+    return count
 end
+
+vim.api.nvim_create_autocmd("BufWipeout", {
+    callback = function(ev)
+        cache[ev.buf] = nil
+    end,
+})
 
 function M.count_str()
     return tostring(M.count_current_buf())

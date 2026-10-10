@@ -8,6 +8,9 @@ local run_mode = "all" -- Options: "cursorline" or "all" (show for all folders o
 
 -- Namespace for virtual text so we can manage it better
 local ns_id = vim.api.nvim_create_namespace("filetype_perc")
+local rendered = {} -- per-window fingerprints; netrw can reuse buffer ids
+local owner_by_buf = {} -- extmarks are buffer-scoped: last rendering window wins
+local group = vim.api.nvim_create_augroup("NetrwMetadataRender", { clear = true })
 
 local function add_chunk(chunks, item, priority, group)
     if not item then
@@ -180,6 +183,24 @@ local function refresh_current_window()
         return
     end
 
+    local win = vim.api.nvim_get_current_win()
+    local buf = vim.api.nvim_get_current_buf()
+    local tick = vim.api.nvim_buf_get_changedtick(buf)
+    local directory = vim.b[buf].netrw_curdir or vim.api.nvim_buf_get_name(buf)
+    local width = vim.api.nvim_win_get_width(win)
+    local previous = rendered[win]
+
+    if previous and previous.buf == buf and previous.tick == tick
+        and previous.directory == directory and previous.width == width
+        and owner_by_buf[buf] == win
+    then
+        return
+    end
+
+    -- Invalidate removed rows and refresh every metadata entry once per listing
+    -- revision, not once for each cursor movement within an unchanged listing.
+    vim.api.nvim_buf_clear_namespace(buf, ns_id, 0, -1)
+
     if run_mode == "cursorline" then
         -- Get the file or directory under the cursor
         local full_path, _ =
@@ -211,13 +232,20 @@ local function refresh_current_window()
             end
         end
     end
+    owner_by_buf[buf] = win
+    rendered[win] = {
+        buf = buf,
+        tick = tick,
+        directory = directory,
+        width = width,
+    }
 end
 
 -- Autocommand to trigger on cursor movement in netrw explorer
 vim.api.nvim_create_autocmd(
-    "CursorMoved",
+    { "CursorMoved", "BufEnter", "WinEnter", "TextChanged" },
     {
-        pattern = "*",
+        group = group,
         callback = refresh_current_window,
     }
 )
@@ -229,6 +257,7 @@ vim.api.nvim_create_autocmd(
         "VimResized",
     },
     {
+        group = group,
         callback = function()
             for _, win in ipairs(
                 vim.api.nvim_list_wins()
@@ -248,3 +277,33 @@ vim.api.nvim_create_autocmd(
         end,
     }
 )
+
+-- External tools can modify files without changing netrw's buffer text.
+vim.api.nvim_create_autocmd("FocusGained", {
+    group = group,
+    callback = function()
+        rendered = {}
+        owner_by_buf = {}
+        refresh_current_window()
+    end,
+})
+
+vim.api.nvim_create_autocmd("WinClosed", {
+    group = group,
+    callback = function(ev)
+        local win = tonumber(ev.match)
+        if win then
+            rendered[win] = nil
+            for buf, owner in pairs(owner_by_buf) do
+                if owner == win then owner_by_buf[buf] = nil end
+            end
+        end
+    end,
+})
+
+vim.api.nvim_create_autocmd("BufWipeout", {
+    group = group,
+    callback = function(ev) owner_by_buf[ev.buf] = nil end,
+})
+
+return { refresh = refresh_current_window }

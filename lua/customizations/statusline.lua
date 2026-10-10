@@ -35,12 +35,22 @@ local cfg = {
     },
 }
 
-local function bd_status()
+local configured_root = nil
+
+local function configured_bd()
     local bd = get_bd()
-    if not bd then return "" end
-    if cfg.bedrocks.root then
-        pcall(bd.setup, { root = cfg.bedrocks.root })
+    if not bd then return nil end
+    local root = cfg.bedrocks.root
+    if root and root ~= configured_root then
+        local ok = pcall(bd.setup, { root = root })
+        if ok then configured_root = root end
     end
+    return bd
+end
+
+local function bd_status()
+    local bd = configured_bd()
+    if not bd then return "" end
     local s = bd.status()
     return (s and #s > 0) and s or ""
 end
@@ -49,7 +59,7 @@ end
 --   • we're inside a Bedrocks tree, and
 --   • current buffer is a normal file with a name.
 function M.bedrocks_file_tag()
-    local bd = get_bd()
+    local bd = configured_bd()
     if not bd then return "" end
 
     -- Only show this when breadcrumbs are on the LEFT (path_left mode)
@@ -68,12 +78,9 @@ function M.bedrocks_file_tag()
 end
 
 function M.bedrocks_or_filename()
-    local bd = get_bd()
+    local bd = configured_bd()
     if not bd then
         return vim.fn.expand("%f")
-    end
-    if cfg.bedrocks.root then
-        pcall(bd.setup, { root = cfg.bedrocks.root })
     end
     local model = bd.current_model()
     if model then

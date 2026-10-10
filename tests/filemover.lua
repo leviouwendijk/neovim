@@ -338,6 +338,131 @@ return testing.suite("filemover", {
 
         vim.cmd("silent enew")
     end),
+
+    testing.test("telescope_post_move_success_cancel_failure_and_mark_cleanup", function(context)
+        local f = fixture(context)
+        local selected = require("core.netrw-selection")
+        local old_resolve, old_capture = selected.resolve, selected.capture
+        local old_clear, old_refresh = selected.clear_marks, selected.refresh
+        local old_targets = core.target_directories
+        local keys = {
+            "plenary.path", "telescope", "telescope.pickers", "telescope.finders",
+            "telescope.actions", "telescope.actions.state", "telescope.sorters",
+            "extensions.filemover",
+        }
+        local previous = {}
+        for _, key in ipairs(keys) do previous[key] = package.loaded[key] end
+        local old_global = _G.Filemover
+        local old_ft = vim.bo.filetype
+        local chosen, kind, destination, submit
+        local closed, clears, refreshes = 0, 0, 0
+        local captured_options
+        local target = core.normalize_path(f:path("target"))
+
+        local ok, err = pcall(function()
+            rawset(selected, "resolve", function(options)
+                captured_options = options
+                return chosen, kind
+            end)
+            rawset(selected, "capture", function(items) return { items = items } end)
+            rawset(selected, "clear_marks", function() clears = clears + 1 end)
+            rawset(selected, "refresh", function(ctx)
+                refreshes = refreshes + 1
+                expect.truthy(type(ctx.items) == "table")
+            end)
+            rawset(core, "target_directories", function() return { target } end)
+            package.loaded["plenary.path"] = {}
+            package.loaded["telescope"] = {}
+            package.loaded["telescope.finders"] = {
+                new_table = function(options) return options end,
+            }
+            package.loaded["telescope.sorters"] = {
+                get_generic_fuzzy_sorter = function() return function() end end,
+            }
+            package.loaded["telescope.actions.state"] = {
+                get_selected_entry = function()
+                    return destination and { value = destination } or nil
+                end,
+            }
+            package.loaded["telescope.actions"] = {
+                close = function(_prompt_bufnr) closed = closed + 1 end,
+                select_default = {
+                    replace = function(_, callback) submit = callback end,
+                },
+            }
+            local picker_stub = {
+                new = function(_, options)
+                    return { find = function()
+                        expect.truthy(options.attach_mappings(123, {}))
+                    end }
+                end,
+            }
+            package.loaded["extensions.filemover"] = nil
+            package.loaded["telescope.pickers"] = nil
+            _G.Filemover = nil
+            vim.bo.filetype = "netrw"
+            local mover = require("extensions.filemover")
+            expect.nil_value(package.loaded["telescope.pickers"],
+                "Filemover module load must not require Telescope pickers")
+            package.loaded["telescope.pickers"] = picker_stub
+
+            -- Visual selection really reaches the picker callback and moves.
+            chosen, kind, destination = { f:path("source/file.txt") }, "visual", target
+            mover.move_selected_files({ visual_rows = { 2, 3 } })
+            expect.equal(captured_options.visual_rows[1], 2)
+            expect.truthy(type(submit) == "function")
+            submit()
+            expect.not_exists(f:path("source/file.txt"))
+            expect.exists(f:path("target/file.txt"))
+            expect.equal(refreshes, 1)
+            expect.equal(clears, 0)
+
+            -- Closing a picker without selecting a destination is a no-op.
+            chosen, kind, destination = { f:path("source/directory/child.txt") }, "visual", target
+            mover.move_selected_files({ visual_rows = { 2 } })
+            package.loaded["telescope.actions"].close(123) -- Escape/cancel path
+            expect.exists(f:path("source/directory/child.txt"))
+            expect.equal(refreshes, 1)
+
+            -- A missing destination is also a no-op, even if submitted.
+            chosen, kind, destination = { f:path("source/directory/child.txt") }, "visual", nil
+            mover.move_selected_files({ visual_rows = { 2 } })
+            submit()
+            expect.exists(f:path("source/directory/child.txt"))
+            expect.equal(refreshes, 1)
+
+            -- Failed-only marked batch leaves marks intact and skips refresh.
+            local collision = expect.not_nil(
+                io.open(f:path("target/child.txt"), "w"), "collision fixture"
+            )
+            collision:write("existing")
+            collision:close()
+            chosen, kind, destination = { f:path("source/directory/child.txt") }, "marks", target
+            mover.move_selected_files()
+            submit()
+            expect.exists(f:path("source/directory/child.txt"))
+            expect.equal(clears, 0)
+            expect.equal(refreshes, 1)
+
+            -- Successful marked move clears marks then refreshes netrw.
+            chosen, kind, destination = { f:path("source/link-to-file") }, "marks", target
+            mover.move_selected_files()
+            submit()
+            expect.not_exists(f:path("source/link-to-file"))
+            expect.truthy(uv.fs_lstat(f:path("target/link-to-file")))
+            expect.equal(clears, 1)
+            expect.equal(refreshes, 2)
+            expect.equal(closed, 5)
+        end)
+
+        selected.resolve, selected.capture = old_resolve, old_capture
+        selected.clear_marks, selected.refresh = old_clear, old_refresh
+        core.target_directories = old_targets
+        for _, key in ipairs(keys) do package.loaded[key] = previous[key] end
+        _G.Filemover = old_global
+        vim.bo.filetype = old_ft
+        if not ok then error(err, 0) end
+    end),
 }, {
     title = "Filemover",
 })

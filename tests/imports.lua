@@ -18,6 +18,8 @@ return {
         { "filetype"    , "tests/filetype.lua" },
         { "file_rename" , "tests/file_rename.lua" },
         { "filemover"   , "tests/filemover.lua" },
+        { "performance", "tests/performance.lua" },
+        { "deferred", "tests/deferred.lua" },
         { "trash"       , "tests/trash.lua" },
         { "netrw_batch" , "tests/netrw_batch.lua" },
         { "trash_ui"    , "tests/trash_ui.lua" },

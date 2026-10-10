@@ -18,6 +18,8 @@ return {
             filetype = true,
             file_rename = true,
             filemover = true,
+            performance = true,
+            deferred = true,
             trash = true,
             netrw_batch = true,
             trash_ui = true,
