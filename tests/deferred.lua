@@ -10,6 +10,7 @@ return testing.suite("deferred startup", {
             return { value = value }
         end)
         local first = ensure("first")
+        assert(first ~= nil, "deferred initializer must return a value")
         expect.equal(ensure("second"), first)
         expect.equal(first.value, "first")
         expect.equal(count, 1)
