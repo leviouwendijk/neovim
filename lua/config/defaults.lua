@@ -16,6 +16,7 @@ M.bin = {
     eclsp = {
         production = { "eclsp" },
     },
+    sysappear = "sysappear",
     bedrocks = "bedrocks",
     copier = "copier",
     trash = "trash",

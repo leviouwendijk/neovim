@@ -12,6 +12,10 @@ function M.register_custom_parsers()
         return false
     end
 
+    for name, definition in pairs(require("core.treesitter-repositories")) do
+        parsers[name] = definition
+    end
+
     -- experimental syntaxes, unpublished
     -- parsers.dbml = {
     --     install_info = {
@@ -66,6 +70,7 @@ function M.register_custom_parsers()
             dbml = "dbml",
             sdia = "sdia",
             ec = "ec",
+            frame = "frame",
             norg = "norg",
         },
     })
@@ -75,6 +80,7 @@ function M.register_custom_parsers()
     vim.treesitter.language.register("dbml", { "dbml" })
     vim.treesitter.language.register("sdia", { "sdia" })
     vim.treesitter.language.register("ec", { "ec" })
+    vim.treesitter.language.register("frame", { "frame" })
     vim.treesitter.language.register("norg", { "norg" })
 
     return true

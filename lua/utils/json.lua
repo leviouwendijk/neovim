@@ -122,4 +122,50 @@ function json.decode(str)
     return val
 end
 
+-- in-buffer reformatting
+function json.format_buffer(bufnr)
+    bufnr = bufnr or vim.api.nvim_get_current_buf()
+
+    local lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+    local source = table.concat(lines, "\n")
+
+    local ok, decoded = pcall(vim.json.decode, source)
+    if not ok then
+        vim.notify(
+            "Invalid JSON: " .. tostring(decoded),
+            vim.log.levels.ERROR
+        )
+        return false
+    end
+
+    local width = vim.bo[bufnr].shiftwidth
+    if width == 0 then
+        width = vim.bo[bufnr].tabstop
+    end
+
+    local indent = vim.bo[bufnr].expandtab
+        and string.rep(" ", width)
+        or "\t"
+
+    local formatted = vim.json.encode(decoded, {
+        indent = indent,
+    })
+
+    vim.api.nvim_buf_set_lines(
+        bufnr,
+        0,
+        -1,
+        false,
+        vim.split(formatted, "\n", { plain = true })
+    )
+
+    return true
+end
+
+vim.api.nvim_create_user_command("JSONFormat", function()
+    json.format_buffer()
+end, {
+    desc = "Pretty-print JSON in the current buffer",
+})
+
 return json

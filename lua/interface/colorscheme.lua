@@ -63,17 +63,40 @@ function MakeClear()
     vim.api.nvim_set_hl(0, "NormalFloat",  { bg = "none" })
 end
 
-local mode = nil
+local last_mode = nil
 
-if appearance and type(appearance.get_macos_appearance) == "function" then
-    mode = appearance.get_macos_appearance()   -- "dark" | "light" | nil
+local function apply_system_appearance(mode)
+    if mode ~= "dark" and mode ~= "light" then
+        return
+    end
+
+    if last_mode == mode then
+        return
+    end
+
+    last_mode = mode
+    vim.o.background = mode
+    SetColor(mode == "dark" and nightTheme or dayTheme, false)
 end
 
-if not mode then
+local mode = appearance and appearance.get_macos_appearance()
+
+if mode then
+    apply_system_appearance(mode)
+else
     note("macOS appearance not detected; using default theme", vim.log.levels.INFO)
+    vim.o.background = "light"
+    SetColor(defaultColorSetting, false)
 end
-vim.o.background = (mode == "dark") and "dark" or "light"
 
-local picked = (mode == "dark" and nightTheme) or (mode == "light" and dayTheme) or defaultColorSetting
+if appearance and type(appearance.watch_macos_appearance) == "function" then
+    vim.api.nvim_create_autocmd("User", {
+        group = vim.api.nvim_create_augroup("SystemAppearanceTheme", { clear = true }),
+        pattern = "SystemAppearanceChanged",
+        callback = function(event)
+            apply_system_appearance(event.data and event.data.mode)
+        end,
+    })
 
-SetColor(picked, false)
+    appearance.watch_macos_appearance()
+end

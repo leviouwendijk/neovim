@@ -26,6 +26,7 @@ return function(context)
         dbml = true,
         sdia = true,
         ec = true,
+        frame = true,
 
         -- norg = true,
     }
