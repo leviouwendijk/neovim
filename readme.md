@@ -36,6 +36,22 @@ Common optional helpers:
 
 Some workflows in this config are personal and require extra local setup.
 
+## Theme
+
+`M.theme` in `lua/config/defaults.lua` sets the colorscheme mode:
+
+- `"dark"` (default): `M.theme.dark` (nightfox)
+- `"light"`: `M.theme.light` (dawnfox)
+- `"system"`: follows macOS appearance and switches live. This is the only mode
+  that starts the `sysappear watch` job (`M.bin.sysappear`).
+
+An unknown mode warns and falls back to `"system"`. Override per machine in
+`lua/config/local.lua`:
+
+```lua
+M.theme = { mode = "system" }
+```
+
 ## Platform notes
 
 The default assumptions are macOS-oriented, but Linux works through local overrides.
