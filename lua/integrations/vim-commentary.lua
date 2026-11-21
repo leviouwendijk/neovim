@@ -1,3 +1,16 @@
+-- frame language
+vim.api.nvim_create_autocmd("FileType", {
+    pattern = "frame",
+    callback = function(ev)
+        -- buffer-local options
+        vim.bo[ev.buf].commentstring = "// %s"
+        vim.bo[ev.buf].comments = "://"
+
+        -- explicit format for tpope/vim-commentary
+        vim.b[ev.buf].commentary_format = "// %s"
+    end,
+})
+
 -- vim.keymap.set("n", "gc", "<Plug>CommentaryLine", {})
 -- vim.keymap.set("v", "gc", "<Plug>Commentary", {})
 
