@@ -1,13 +1,17 @@
 local funcs = require("config.funcs")
+local acc = require("accessor")
 
-local appearance = funcs.require_or_nil("utils.appearance", {
-    message = "utils.appearance missing; using default theme",
-})
+---@enum ThemeMode
+local ThemeMode = {
+    dark = "dark",
+    light = "light",
+    system = "system",
+}
 
-local defaultColorSetting = "dawnfox"
-
-local dayTheme = "dawnfox"
-local nightTheme= "nightfox"
+local theme = acc.theme or {}
+local dayTheme = theme.light or "dawnfox"
+local nightTheme = theme.dark or "nightfox"
+local defaultColorSetting = dayTheme
 
 local function note(msg, level)
     level = level or vim.log.levels.INFO
@@ -65,7 +69,7 @@ end
 
 local last_mode = nil
 
-local function apply_system_appearance(mode)
+local function apply_mode(mode)
     if mode ~= "dark" and mode ~= "light" then
         return
     end
@@ -79,10 +83,26 @@ local function apply_system_appearance(mode)
     SetColor(mode == "dark" and nightTheme or dayTheme, false)
 end
 
+local theme_mode = ThemeMode[theme.mode or ThemeMode.system]
+if not theme_mode then
+    note(("Unknown theme.mode '%s'; expected dark, light or system. Using system.")
+        :format(tostring(theme.mode)), vim.log.levels.WARN)
+    theme_mode = ThemeMode.system
+end
+
+if theme_mode ~= ThemeMode.system then
+    apply_mode(theme_mode)
+    return
+end
+
+local appearance = funcs.require_or_nil("utils.appearance", {
+    message = "utils.appearance missing; using default theme",
+})
+
 local mode = appearance and appearance.get_macos_appearance()
 
 if mode then
-    apply_system_appearance(mode)
+    apply_mode(mode)
 else
     note("macOS appearance not detected; using default theme", vim.log.levels.INFO)
     vim.o.background = "light"
@@ -94,7 +114,7 @@ if appearance and type(appearance.watch_macos_appearance) == "function" then
         group = vim.api.nvim_create_augroup("SystemAppearanceTheme", { clear = true }),
         pattern = "SystemAppearanceChanged",
         callback = function(event)
-            apply_system_appearance(event.data and event.data.mode)
+            apply_mode(event.data and event.data.mode)
         end,
     })
 

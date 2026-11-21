@@ -53,6 +53,13 @@ M.paths = {
     undodir = path.home_join(".vim", "undodir"),
 }
 
+-- mode: "dark" | "light" | "system" (follows macOS appearance; runs sysappear watch).
+M.theme = {
+    mode = "dark",
+    light = "dawnfox",
+    dark = "nightfox",
+}
+
 -- Own lint LSP is opt-in, even if the binary is installed.
 M.swiftsemantics = { lsp = { enabled = false } }
 
